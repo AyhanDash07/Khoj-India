@@ -1,8 +1,16 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { AnimatePresence } from 'framer-motion'
+import {
+  BrowserRouter,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom'
 
 import { ROUTES } from '../config/routes'
 
 import Navbar from '../components/navigation/navbar'
+import PageTransition from '../components/motion/PageTransition'
+import { AuthProvider } from '../context/AuthContext.tsx'
 
 import HomePage from '../pages/HomePage'
 import ExplorePage from '../pages/ExplorePage'
@@ -10,6 +18,11 @@ import ExperiencesPage from '../pages/ExperiencesPage'
 import StoriesPage from '../pages/StoriesPage'
 import MapPage from '../pages/MapPage'
 import PlanPage from '../pages/PlanPage'
+import LoginPage from '../pages/LoginPage'
+import RegisterPage from '../pages/RegisterPage'
+import ProfilePage from '../pages/ProfilePage'
+import PreferencesPage from '../pages/PreferencesPage.tsx'
+// import SmartDiscovery from '../components/intelligence/SmartDiscovery'
 
 function NotFoundPage() {
   return (
@@ -29,28 +42,50 @@ function NotFoundPage() {
   )
 }
 
+function AnimatedRoutes() {
+  const location = useLocation()
+
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <PageTransition key={location.pathname}>
+        <Routes location={location}>
+          <Route path={ROUTES.home} element={<HomePage />} />
+          <Route path={ROUTES.explore} element={<ExplorePage />} />
+          <Route
+            path={ROUTES.experiences}
+            element={<ExperiencesPage />}
+          />
+          <Route
+            path={ROUTES.stories}
+            element={<StoriesPage />}
+          />
+          <Route path={ROUTES.map} element={<MapPage />} />
+          <Route path={ROUTES.plan} element={<PlanPage />} />
+
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path={ROUTES.profile} element={<ProfilePage />} />
+          <Route path={ROUTES.preferences} element={<PreferencesPage />} />
+
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </PageTransition>
+    </AnimatePresence>
+  )
+}
+
 function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)]">
-        <Navbar />
+      <AuthProvider>
+        <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)]">
+          <Navbar />
 
-        <main>
-          <Routes>
-            <Route path={ROUTES.home} element={<HomePage />} />
-            <Route path={ROUTES.explore} element={<ExplorePage />} />
-            <Route
-              path={ROUTES.experiences}
-              element={<ExperiencesPage />}
-            />
-            <Route path={ROUTES.stories} element={<StoriesPage />} />
-            <Route path={ROUTES.map} element={<MapPage />} />
-            <Route path={ROUTES.plan} element={<PlanPage />} />
-
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </main>
-      </div>
+          <main>
+            <AnimatedRoutes />
+          </main>
+        </div>
+      </AuthProvider>
     </BrowserRouter>
   )
 }

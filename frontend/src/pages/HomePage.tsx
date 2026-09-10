@@ -5,11 +5,15 @@ import IntelligenceSection from '../components/intelligence/IntelligenceSection'
 import StoriesSection from '../components/home/StoriesSection'
 import MapSection from '../components/home/MapSection'
 import ImpactSection from '../components/home/ImpactSection'
+import IntelligenceTest from '../components/ai/IntelligenceTest'
+import SmartDiscovery from '../components/intelligence/SmartDiscovery'
 
 function HomePage() {
   return (
     <>
       <Hero />
+
+      <SmartDiscovery />
 
       <IntelligenceSection />
 
@@ -22,6 +26,8 @@ function HomePage() {
       <MapSection/>
 
       <ImpactSection/>
+      
+      <IntelligenceTest/>
     </>
   )
 }

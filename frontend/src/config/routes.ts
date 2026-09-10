@@ -5,4 +5,12 @@ export const ROUTES = {
   stories: '/stories',
   map: '/map',
   plan: '/plan',
+
+  // Authentication
+  login: '/login',
+  register: '/register',
+
+  // Traveller
+  profile: '/profile',
+  preferences: '/profile/preferences',
 } as const
