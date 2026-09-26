@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -12,6 +14,12 @@ import {
 } from "lucide-react";
 
 import type { DestinationDetail as DestinationDetailData } from "../../services/destinationService";
+import {
+  getDestinationIntelligence,
+  type IntelligenceResult,
+} from "../../services/intelligenceService";
+import { useAuth } from "../../hooks/useAuth";
+import IntelligenceResultCard from "../ai/IntelligenceResultCard";
 
 interface DestinationDetailProps {
   data: DestinationDetailData;
@@ -78,8 +86,58 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
     experiences,
   } = data;
 
-  const stateName = destination.states?.name ?? "India";
+  const navigate = useNavigate();
+  const { user, session } = useAuth();
 
+  const [userIntelligence, setUserIntelligence] =
+    useState<IntelligenceResult | null>(null);
+  const [intelLoading, setIntelLoading] = useState(false);
+  const [intelError, setIntelError] = useState(false);
+
+  /*
+   * Fetch personalized traveller intelligence if authenticated.
+   */
+  useEffect(() => {
+    if (!user || !session?.access_token || !destination.id) {
+      setUserIntelligence(null);
+      setIntelLoading(false);
+      setIntelError(false);
+      return;
+    }
+
+    let isMounted = true;
+
+    async function loadPersonalizedIntelligence() {
+      try {
+        setIntelLoading(true);
+        setIntelError(false);
+        const result = await getDestinationIntelligence(destination.id);
+
+        if (!isMounted) return;
+        setUserIntelligence(result);
+      } catch (err) {
+        console.warn(
+          "[KHOJ] Could not load personalized destination intelligence:",
+          err,
+        );
+        if (isMounted) {
+          setIntelError(true);
+        }
+      } finally {
+        if (isMounted) {
+          setIntelLoading(false);
+        }
+      }
+    }
+
+    void loadPersonalizedIntelligence();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [destination.id, user, session]);
+
+  const stateName = destination.states?.name ?? "India";
   const stateCode = destination.states?.code ?? "";
 
   const heroImage =
@@ -102,6 +160,13 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
         )
       : null;
 
+  const hasImpactScore =
+    intelligence.impact?.impact_score !== null &&
+    intelligence.impact?.impact_score !== undefined;
+  const hasPressure = Boolean(intelligence.pressure?.pressure_level);
+  const hasSafety = Boolean(intelligence.safety?.safety_level);
+  const hasBestTime = bestMonths.length > 0;
+
   return (
     <main className="min-h-screen bg-[#090D0B] text-[#F8F1E5]">
       {/* -------------------------------------------------- */}
@@ -116,7 +181,6 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
         />
 
         <div className="absolute inset-0 bg-gradient-to-t from-[#090D0B] via-[#090D0B]/55 to-black/10" />
-
         <div className="absolute inset-0 bg-gradient-to-r from-[#090D0B]/75 via-[#090D0B]/20 to-transparent" />
 
         <div className="relative z-10 mx-auto flex min-h-[82vh] max-w-7xl flex-col justify-between px-6 py-8 lg:px-10">
@@ -143,9 +207,7 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
             <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-[#F8F1E5]/75">
               <span className="flex items-center gap-1.5">
                 <MapPin size={15} />
-
                 {stateName}
-
                 {stateCode && ` · ${stateCode}`}
               </span>
 
@@ -217,12 +279,10 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
 
             <div className="mt-14 grid gap-8 border-t border-[#F8F1E5]/10 pt-8 sm:grid-cols-3">
               <EditorialFact label="Location" value={stateName} />
-
               <EditorialFact
                 label="Type"
                 value={destination.destination_type ?? "Destination"}
               />
-
               <EditorialFact
                 label="Status"
                 value={
@@ -274,17 +334,14 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
                   icon={<Sparkles size={16} />}
                   label="Destination character"
                 />
-
                 <ContextSignal
                   icon={<TrendingUp size={16} />}
                   label="Tourism pressure"
                 />
-
                 <ContextSignal
                   icon={<ShieldCheck size={16} />}
                   label="Travel safety"
                 />
-
                 <ContextSignal
                   icon={<Compass size={16} />}
                   label="Travel conditions"
@@ -295,8 +352,8 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
         </div>
       </section>
 
-            {/* -------------------------------------------------- */}
-      {/* DESTINATION STORY */}
+      {/* -------------------------------------------------- */}
+      {/* DESTINATION STORY (BLOCK 04A PRESERVED) */}
       {/* -------------------------------------------------- */}
 
       {(() => {
@@ -409,38 +466,79 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
           </section>
         );
       })()}
-      
+
       {/* -------------------------------------------------- */}
-      {/* KHOJ INTELLIGENCE */}
+      {/* KHOJ INTELLIGENCE (PERSONALIZED MATCH & SIGNALS) */}
       {/* -------------------------------------------------- */}
 
-      {(() => {
-        const hasImpactScore = intelligence.impact?.impact_score !== null && intelligence.impact?.impact_score !== undefined;
-        const hasPressure = Boolean(intelligence.pressure?.pressure_level);
-        const hasSafety = Boolean(intelligence.safety?.safety_level);
-        const hasBestTime = bestMonths.length > 0;
+      <section className="mx-auto max-w-7xl px-6 py-28 lg:px-10 lg:py-40">
+        <div className="mb-14 max-w-2xl">
+          <p className="mb-4 text-xs uppercase tracking-[0.28em] text-[#FF9933]">
+            Khoj intelligence
+          </p>
 
-        if (!hasImpactScore && !hasPressure && !hasSafety && !hasBestTime) {
-          return null;
-        }
+          <h2 className="font-serif text-4xl leading-tight sm:text-5xl">
+            {user ? "Your personalized match." : "A quick read before you go."}
+          </h2>
 
-        return (
-          <section className="mx-auto max-w-7xl px-6 py-28 lg:px-10 lg:py-40">
-            <div className="mb-14 max-w-2xl">
-              <p className="mb-4 text-xs uppercase tracking-[0.28em] text-[#FF9933]">
-                Khoj intelligence
+          <p className="mt-5 max-w-xl text-sm leading-7 text-[#F8F1E5]/50">
+            {user
+              ? `Personalized intelligence evaluating how ${destination.name} aligns with your travel profile.`
+              : "Contextual signals to put this destination into perspective."}
+          </p>
+        </div>
+
+        {/* Authenticated Loading Skeleton */}
+        {user && intelLoading && (
+          <div className="mb-14 animate-pulse rounded-[2rem] border border-[#F8F1E5]/10 bg-[#111713] p-10 text-center">
+            <Sparkles className="mx-auto animate-spin text-[#FF9933]" size={24} />
+            <p className="mt-4 text-sm text-[#F8F1E5]/60">
+              Calculating your personalized match for {destination.name}...
+            </p>
+          </div>
+        )}
+
+        {/* Authenticated Result */}
+        {user && !intelLoading && userIntelligence && (
+          <div className="mb-16">
+            <IntelligenceResultCard result={userIntelligence} />
+          </div>
+        )}
+
+        {/* Authenticated Non-blocking Error Fallback */}
+        {user && !intelLoading && intelError && (
+          <div className="mb-14 rounded-2xl border border-[#FF9933]/20 bg-[#FF9933]/5 p-6 text-sm text-[#F8F1E5]/60">
+            <span className="font-semibold text-[#FF9933]">Notice:</span> Personalized fit score is currently unavailable. General destination signals below remain fully accessible.
+          </div>
+        )}
+
+        {/* Unauthenticated Visitor CTA */}
+        {!user && (
+          <div className="mb-14 flex flex-col items-start justify-between gap-6 rounded-[2rem] border border-[#FF9933]/30 bg-[#FF9933]/5 p-8 sm:flex-row sm:items-center">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-[#FF9933]">
+                Discover Your Fit
               </p>
-
-              <h2 className="font-serif text-4xl leading-tight sm:text-5xl">
-                A quick read
-                <br />
-                before you go.
-              </h2>
-
-              <p className="mt-5 max-w-xl text-sm leading-7 text-[#F8F1E5]/50">
-                Contextual signals to put this destination into perspective.
-              </p>
+              <h3 className="mt-1 font-serif text-2xl text-[#F8F1E5]">
+                Sign in to see how {destination.name} matches your travel style.
+              </h3>
             </div>
+            <button
+              type="button"
+              onClick={() => navigate("/login")}
+              className="shrink-0 rounded-full border border-[#FF9933] bg-[#FF9933] px-6 py-3 text-sm font-medium text-[#090D0B] transition hover:bg-[#F5A623]"
+            >
+              Sign in to Khoj
+            </button>
+          </div>
+        )}
+
+        {/* General Destination Signals Grid (Always Rendered If Data Available) */}
+        {(hasImpactScore || hasPressure || hasSafety || hasBestTime) && (
+          <div>
+            <p className="mb-6 text-xs uppercase tracking-[0.18em] text-[#F8F1E5]/40">
+              General Destination Signals
+            </p>
 
             <div className="grid gap-px overflow-hidden border border-[#F8F1E5]/10 bg-[#F8F1E5]/10 md:grid-cols-2 lg:grid-cols-4">
               {hasImpactScore && (
@@ -455,7 +553,9 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
               {hasPressure && (
                 <IntelligenceMetric
                   label="Tourism pressure"
-                  value={getPressureLabel(intelligence.pressure?.pressure_level ?? null)}
+                  value={getPressureLabel(
+                    intelligence.pressure?.pressure_level ?? null,
+                  )}
                   icon={<TrendingUp size={18} />}
                 />
               )}
@@ -463,7 +563,9 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
               {hasSafety && (
                 <IntelligenceMetric
                   label="Safety advisory"
-                  value={getSafetyLabel(intelligence.safety?.safety_level ?? null)}
+                  value={getSafetyLabel(
+                    intelligence.safety?.safety_level ?? null,
+                  )}
                   icon={<ShieldCheck size={18} />}
                 />
               )}
@@ -476,36 +578,60 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
                 />
               )}
             </div>
-          </section>
-        );
-      })()}
+          </div>
+        )}
+      </section>
 
       {/* -------------------------------------------------- */}
-      {/* IMPACT */}
+      {/* IMPACT (BLOCK 04B PRESERVED) */}
       {/* -------------------------------------------------- */}
 
       {(() => {
         const impactScores = [
-          intelligence.impact?.impact_score !== null && intelligence.impact?.impact_score !== undefined
-            ? { label: "Overall impact", value: intelligence.impact.impact_score }
+          intelligence.impact?.impact_score !== null &&
+          intelligence.impact?.impact_score !== undefined
+            ? {
+                label: "Overall impact",
+                value: intelligence.impact.impact_score,
+              }
             : null,
-          intelligence.impact?.heritage_preservation_score !== null && intelligence.impact?.heritage_preservation_score !== undefined
-            ? { label: "Heritage preservation", value: intelligence.impact.heritage_preservation_score }
+          intelligence.impact?.heritage_preservation_score !== null &&
+          intelligence.impact?.heritage_preservation_score !== undefined
+            ? {
+                label: "Heritage preservation",
+                value: intelligence.impact.heritage_preservation_score,
+              }
             : null,
-          intelligence.impact?.environmental_practice_score !== null && intelligence.impact?.environmental_practice_score !== undefined
-            ? { label: "Environmental practice", value: intelligence.impact.environmental_practice_score }
+          intelligence.impact?.environmental_practice_score !== null &&
+          intelligence.impact?.environmental_practice_score !== undefined
+            ? {
+                label: "Environmental practice",
+                value: intelligence.impact.environmental_practice_score,
+              }
             : null,
-          intelligence.impact?.local_ownership_score !== null && intelligence.impact?.local_ownership_score !== undefined
-            ? { label: "Local ownership", value: intelligence.impact.local_ownership_score }
+          intelligence.impact?.local_ownership_score !== null &&
+          intelligence.impact?.local_ownership_score !== undefined
+            ? {
+                label: "Local ownership",
+                value: intelligence.impact.local_ownership_score,
+              }
             : null,
-          intelligence.impact?.local_sourcing_score !== null && intelligence.impact?.local_sourcing_score !== undefined
-            ? { label: "Local sourcing", value: intelligence.impact.local_sourcing_score }
+          intelligence.impact?.local_sourcing_score !== null &&
+          intelligence.impact?.local_sourcing_score !== undefined
+            ? {
+                label: "Local sourcing",
+                value: intelligence.impact.local_sourcing_score,
+              }
             : null,
-          intelligence.impact?.community_participation_score !== null && intelligence.impact?.community_participation_score !== undefined
-            ? { label: "Community participation", value: intelligence.impact.community_participation_score }
+          intelligence.impact?.community_participation_score !== null &&
+          intelligence.impact?.community_participation_score !== undefined
+            ? {
+                label: "Community participation",
+                value: intelligence.impact.community_participation_score,
+              }
             : null,
         ].filter(
-          (item): item is { label: string; value: number } => item !== null
+          (item): item is { label: string; value: number } => item !== null,
         );
 
         if (impactScores.length === 0) return null;
@@ -526,7 +652,8 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
                   </h2>
 
                   <p className="mt-6 max-w-sm text-sm leading-7 text-[#F8F1E5]/45">
-                    Khoj evaluates how tourism contributes positively to the places and communities people visit.
+                    Khoj evaluates how tourism contributes positively to the
+                    places and communities people visit.
                   </p>
                 </div>
 
@@ -550,17 +677,38 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
       {/* -------------------------------------------------- */}
 
       {(() => {
-        const hasSolo = hasContent(intelligence.safety?.solo_travel_suitability);
-        const hasNight = hasContent(intelligence.safety?.night_travel_advisory);
-        const hasEmergency = hasContent(intelligence.safety?.emergency_information);
+        const hasSolo = hasContent(
+          intelligence.safety?.solo_travel_suitability,
+        );
+        const hasNight = hasContent(
+          intelligence.safety?.night_travel_advisory,
+        );
+        const hasEmergency = hasContent(
+          intelligence.safety?.emergency_information,
+        );
         const hasSafetyData = hasSolo || hasNight || hasEmergency;
 
-        const hasWheelchair = intelligence.accessibility?.wheelchair_accessible !== null && intelligence.accessibility?.wheelchair_accessible !== undefined;
-        const hasTransport = intelligence.accessibility?.accessible_transport !== null && intelligence.accessibility?.accessible_transport !== undefined;
-        const hasAccomm = intelligence.accessibility?.accessible_accommodation !== null && intelligence.accessibility?.accessible_accommodation !== undefined;
-        const hasRestrooms = intelligence.accessibility?.accessible_restrooms !== null && intelligence.accessibility?.accessible_restrooms !== undefined;
-        const hasNotes = hasContent(intelligence.accessibility?.accessibility_notes);
-        const hasAccessibilityData = hasWheelchair || hasTransport || hasAccomm || hasRestrooms || hasNotes;
+        const hasWheelchair =
+          intelligence.accessibility?.wheelchair_accessible !== null &&
+          intelligence.accessibility?.wheelchair_accessible !== undefined;
+        const hasTransport =
+          intelligence.accessibility?.accessible_transport !== null &&
+          intelligence.accessibility?.accessible_transport !== undefined;
+        const hasAccomm =
+          intelligence.accessibility?.accessible_accommodation !== null &&
+          intelligence.accessibility?.accessible_accommodation !== undefined;
+        const hasRestrooms =
+          intelligence.accessibility?.accessible_restrooms !== null &&
+          intelligence.accessibility?.accessible_restrooms !== undefined;
+        const hasNotes = hasContent(
+          intelligence.accessibility?.accessibility_notes,
+        );
+        const hasAccessibilityData =
+          hasWheelchair ||
+          hasTransport ||
+          hasAccomm ||
+          hasRestrooms ||
+          hasNotes;
 
         if (!hasSafetyData && !hasAccessibilityData) return null;
 
@@ -582,7 +730,9 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
               </p>
             </div>
 
-            <div className={`grid gap-16 ${hasSafetyData && hasAccessibilityData ? "lg:grid-cols-2" : "grid-cols-1 max-w-3xl"}`}>
+            <div
+              className={`grid gap-16 ${hasSafetyData && hasAccessibilityData ? "lg:grid-cols-2" : "max-w-3xl grid-cols-1"}`}
+            >
               {hasSafetyData && (
                 <InfoPanel
                   title="Context-aware safety"
@@ -620,33 +770,45 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
                   eyebrow="Inclusive travel"
                   icon={<Compass size={20} />}
                 >
-                  {(hasWheelchair || hasTransport || hasAccomm || hasRestrooms) && (
+                  {(hasWheelchair ||
+                    hasTransport ||
+                    hasAccomm ||
+                    hasRestrooms) && (
                     <div className="grid grid-cols-2 gap-4">
                       {hasWheelchair && (
                         <BooleanRow
                           label="Wheelchair"
-                          value={intelligence.accessibility!.wheelchair_accessible}
+                          value={
+                            intelligence.accessibility!.wheelchair_accessible
+                          }
                         />
                       )}
 
                       {hasTransport && (
                         <BooleanRow
                           label="Transport"
-                          value={intelligence.accessibility!.accessible_transport}
+                          value={
+                            intelligence.accessibility!.accessible_transport
+                          }
                         />
                       )}
 
                       {hasAccomm && (
                         <BooleanRow
                           label="Accommodation"
-                          value={intelligence.accessibility!.accessible_accommodation}
+                          value={
+                            intelligence.accessibility!
+                              .accessible_accommodation
+                          }
                         />
                       )}
 
                       {hasRestrooms && (
                         <BooleanRow
                           label="Restrooms"
-                          value={intelligence.accessibility!.accessible_restrooms}
+                          value={
+                            intelligence.accessibility!.accessible_restrooms
+                          }
                         />
                       )}
                     </div>
@@ -669,7 +831,11 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
       {/* -------------------------------------------------- */}
 
       {(() => {
-        if (!intelligence.seasonality || intelligence.seasonality.length === 0 || bestSeasonScore === null) {
+        if (
+          !intelligence.seasonality ||
+          intelligence.seasonality.length === 0 ||
+          bestSeasonScore === null
+        ) {
           return null;
         }
 
@@ -701,7 +867,8 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
                   </div>
 
                   <p className="mt-5 text-sm leading-7 text-[#F8F1E5]/50">
-                    {getSuitabilityLabel(bestSeasonScore)} travel conditions observed across Khoj destination data.
+                    {getSuitabilityLabel(bestSeasonScore)} travel conditions
+                    observed across Khoj destination data.
                   </p>
 
                   {bestMonths.length > 0 && (
@@ -722,7 +889,7 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
         );
       })()}
 
-            {/* -------------------------------------------------- */}
+      {/* -------------------------------------------------- */}
       {/* TRAVEL NOTES */}
       {/* -------------------------------------------------- */}
 
@@ -814,7 +981,7 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
           </section>
         );
       })()}
-      
+
       {/* -------------------------------------------------- */}
       {/* EXPERIENCES */}
       {/* -------------------------------------------------- */}
