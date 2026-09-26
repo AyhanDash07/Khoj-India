@@ -1,16 +1,24 @@
 import {
+  AlertCircle,
   ArrowRight,
   Compass,
   MapPin,
   Mic,
+  RotateCcw,
+  ShieldAlert,
   Sparkles,
 } from 'lucide-react'
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import Badge from '../components/common/Badge'
 import Button from '../components/common/Button'
+import RecommendationCard from '../components/intelligence/RecommendationCard'
 import PageHeader from '../components/layout/PageHeader'
 import PageLayout from '../components/layout/PageLayout'
+import { useAuth } from '../hooks/useAuth'
+import { getRecommendations } from '../services/recommendationService'
+import type { RecommendationData } from '../types/recommendations'
 
 const quickPreferences = [
   'Nature',
@@ -21,8 +29,15 @@ const quickPreferences = [
 ]
 
 function PlanPage() {
+  const navigate = useNavigate()
+  const { user, session } = useAuth()
+
   const [prompt, setPrompt] = useState('')
   const [preferences, setPreferences] = useState<string[]>([])
+
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [data, setData] = useState<RecommendationData | null>(null)
 
   const togglePreference = (preference: string) => {
     setPreferences((current) =>
@@ -33,6 +48,35 @@ function PlanPage() {
   }
 
   const canDiscover = prompt.trim().length > 0 || preferences.length > 0
+
+  async function handleDiscover() {
+    if (!user || !session) {
+      setError('AUTH_REQUIRED')
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+
+      const primaryType = preferences[0] || undefined
+
+      const result = await getRecommendations({
+        destination_type: primaryType,
+        max_results: 6,
+      })
+
+      setData(result)
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Failed to generate recommendations.'
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <PageLayout>
@@ -138,11 +182,21 @@ function PlanPage() {
           <div className="mt-10">
             <Button
               fullWidth
-              disabled={!canDiscover}
+              disabled={!canDiscover || loading}
+              onClick={handleDiscover}
               className="justify-center"
             >
-              Ask Khoj
-              <ArrowRight size={17} strokeWidth={1.6} />
+              {loading ? (
+                <>
+                  <Sparkles className="animate-spin" size={17} />
+                  Khoj Intelligence Thinking...
+                </>
+              ) : (
+                <>
+                  Ask Khoj
+                  <ArrowRight size={17} strokeWidth={1.6} />
+                </>
+              )}
             </Button>
 
             {!canDiscover && (
@@ -240,6 +294,115 @@ function PlanPage() {
           </div>
         </aside>
       </div>
+
+      {/* Auth Required State */}
+      {error === 'AUTH_REQUIRED' && (
+        <div className="mt-12 rounded-[2rem] border border-[#FF9933]/25 bg-[#FF9933]/5 p-8 text-center">
+          <ShieldAlert className="mx-auto text-[#FF9933]" size={36} />
+
+          <h3 className="mt-4 font-serif text-3xl text-[#F8F1E5]">
+            Sign in to unlock Khoj Intelligence
+          </h3>
+
+          <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-[#F8F1E5]/60">
+            Personalized destination recommendations, pressure-aware redistribution, and impact scoring require an authenticated traveller profile.
+          </p>
+
+          <Button
+            className="mx-auto mt-6"
+            onClick={() => navigate('/login')}
+          >
+            Sign in to Khoj
+          </Button>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && error !== 'AUTH_REQUIRED' && (
+        <div className="mt-12 rounded-[2rem] border border-red-500/25 bg-red-500/5 p-8 text-center">
+          <AlertCircle className="mx-auto text-red-400" size={36} />
+
+          <h3 className="mt-4 font-serif text-2xl text-red-200">
+            Recommendation Error
+          </h3>
+
+          <p className="mx-auto mt-2 max-w-md text-sm text-red-200/70">
+            {error}
+          </p>
+
+          <Button
+            className="mx-auto mt-6"
+            onClick={handleDiscover}
+          >
+            <RotateCcw size={15} />
+            Try again
+          </Button>
+        </div>
+      )}
+
+      {/* Recommendations Results Section */}
+      {data && (
+        <section className="mt-20 border-t border-[var(--color-border)] pt-16">
+          {/* Redistribution Alert */}
+          {data.redistribution_suggestions.length > 0 && (
+            <div className="mb-10 rounded-2xl border border-[#2E7D32]/30 bg-[#2E7D32]/10 p-5 text-sm leading-6 text-[#7BC47F]">
+              <span className="font-semibold text-[#A2E0A5]">
+                Khoj Pressure Balancing:
+              </span>{' '}
+              {data.redistribution_suggestions[0].reason}
+            </div>
+          )}
+
+          {data.recommendations.length > 0 ? (
+            <div>
+              <div className="mb-10 flex items-end justify-between border-b border-[var(--color-border)] pb-6">
+                <div>
+                  <p className="eyebrow-khoj">Personalized Discoveries</p>
+
+                  <h2 className="mt-2 font-serif text-3xl sm:text-4xl">
+                    Recommended for You
+                  </h2>
+                </div>
+
+                <span className="hidden text-xs text-[var(--color-text-muted)] sm:block">
+                  {data.summary.total_destinations_evaluated} destinations evaluated
+                </span>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {data.recommendations.map((rec) => (
+                  <RecommendationCard
+                    key={rec.destination.id}
+                    recommendation={rec}
+                    onSelect={(id) => navigate(`/explore?destination=${id}`)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-[2rem] border border-dashed border-[var(--color-border)] p-12 text-center">
+              <p className="font-serif text-3xl">
+                No matching destinations found yet.
+              </p>
+
+              <p className="mx-auto mt-3 max-w-md text-sm text-[var(--color-text-muted)]">
+                We couldn't surface recommendations matching your selected filters. Try clearing filters or choosing a different quick preference.
+              </p>
+
+              <Button
+                className="mx-auto mt-6"
+                onClick={() => {
+                  setPreferences([])
+                  setData(null)
+                  setError(null)
+                }}
+              >
+                Reset preferences
+              </Button>
+            </div>
+          )}
+        </section>
+      )}
     </PageLayout>
   )
 }

@@ -9,6 +9,7 @@ import type { Recommendation } from '../../types/recommendations'
 
 interface RecommendationCardProps {
   recommendation: Recommendation
+  onSelect?: (destinationId: number) => void
 }
 
 function getScoreStyle(score: number): string {
@@ -33,6 +34,7 @@ function getDimensionValue(value: number | null): string {
 
 export default function RecommendationCard({
   recommendation,
+  onSelect,
 }: RecommendationCardProps) {
   const {
     destination,
@@ -199,6 +201,7 @@ export default function RecommendationCard({
       {/* CTA */}
       <button
         type="button"
+        onClick={() => onSelect?.(destination.id)}
         className="mt-7 flex w-full items-center justify-between rounded-full border border-[#F8F1E5]/10 bg-[#F8F1E5]/8 px-5 py-3.5 text-xs font-semibold text-[#F8F1E5] transition-all duration-300 hover:border-[#FF9933]/30 hover:bg-[#FF9933] hover:text-[#090D0B]"
       >
         <span>Explore destination</span>
