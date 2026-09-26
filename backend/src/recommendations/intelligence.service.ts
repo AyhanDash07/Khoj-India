@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js'
+
 import type {
   DestinationExperience,
   DestinationIntelligence,
@@ -18,17 +19,18 @@ export async function getTravellerPreferences(
   const { data, error } = await supabaseAdmin
     .from('user_preferences')
     .select(`
-      interests,
-      travel_styles,
-      preferred_trip_duration_days,
-      budget_per_day,
-      budget_currency,
-      crowd_preference,
-      preferred_regions,
-      accessibility_needs,
-      food_preferences,
-      language_preferences
-    `)
+  interests,
+  travel_styles,
+  preferred_trip_duration_days,
+  budget_per_day,
+  budget_currency,
+  crowd_preference,
+  preferred_regions,
+  accessibility_needs,
+  food_preferences,
+  language_preferences,
+  travel_month
+`)
     .eq('user_id', userId)
     .maybeSingle()
 
@@ -37,10 +39,11 @@ export async function getTravellerPreferences(
       `Failed to fetch traveller preferences: ${error.message}`,
     )
   }
+
   console.log(
-  '[KHOJ DEBUG] Traveller preferences:',
-  JSON.stringify(data, null, 2),
-)
+    '[KHOJ DEBUG] Traveller preferences:',
+    JSON.stringify(data, null, 2),
+  )
 
   return {
     interests: data?.interests ?? [],
@@ -54,6 +57,7 @@ export async function getTravellerPreferences(
     accessibility_needs: data?.accessibility_needs ?? [],
     food_preferences: data?.food_preferences ?? [],
     language_preferences: data?.language_preferences ?? [],
+    travel_month: data?.travel_month ?? null,
   }
 }
 
@@ -133,22 +137,23 @@ export async function getDestinationForIntelligence(
   }
 
   const state = Array.isArray(data.states)
-  ? data.states[0]
-  : data.states
+    ? data.states[0]
+    : data.states
+
   return {
-  id: data.id,
-  name: data.name,
-  slug: data.slug,
-  short_description: data.short_description,
-  description: data.description,
-  destination_type: data.destination_type,
-  latitude: data.latitude,
-  longitude: data.longitude,
-  featured: data.featured,
-  verified: data.verified,
-  state_name: state?.name ?? null,
-  tags,
-}
+    id: data.id,
+    name: data.name,
+    slug: data.slug,
+    short_description: data.short_description,
+    description: data.description,
+    destination_type: data.destination_type,
+    latitude: data.latitude,
+    longitude: data.longitude,
+    featured: data.featured,
+    verified: data.verified,
+    state_name: state?.name ?? null,
+    tags,
+  }
 }
 
 /**
@@ -159,15 +164,21 @@ export async function getDestinationForIntelligence(
  * Missing data is represented using a neutral object rather
  * than null so that the scoring engine always receives a
  * predictable structure.
+ *
+ * travelMonth is optional. When it is null, seasonality data
+ * is intentionally not fetched because the traveller has not
+ * provided a travel month yet.
  */
 export async function getDestinationIntelligence(
   destinationId: number,
+  travelMonth: number | null = null,
 ): Promise<DestinationIntelligence> {
   const [
     pressureResult,
     impactResult,
     safetyResult,
     accessibilityResult,
+    seasonalityResult,
   ] = await Promise.all([
     supabaseAdmin
       .from('pressure_data')
@@ -222,6 +233,26 @@ export async function getDestinationIntelligence(
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+
+    travelMonth !== null
+      ? supabaseAdmin
+          .from('destination_seasonality')
+          .select(`
+            suitability_score,
+            season_label,
+            weather_notes,
+            accessibility_notes,
+            crowd_notes,
+            data_source,
+            measured_at
+          `)
+          .eq('destination_id', destinationId)
+          .eq('month', travelMonth)
+          .maybeSingle()
+      : Promise.resolve({
+          data: null,
+          error: null,
+        }),
   ])
 
   if (pressureResult.error) {
@@ -248,10 +279,17 @@ export async function getDestinationIntelligence(
     )
   }
 
+  if (seasonalityResult.error) {
+    throw new Error(
+      `Failed to fetch destination seasonality data: ${seasonalityResult.error.message}`,
+    )
+  }
+
   const pressure = pressureResult.data
   const impact = impactResult.data
   const safety = safetyResult.data
   const accessibility = accessibilityResult.data
+  const seasonality = seasonalityResult.data
 
   return {
     pressure: {
@@ -296,6 +334,23 @@ export async function getDestinationIntelligence(
       accessibility_notes:
         accessibility?.accessibility_notes ?? null,
     },
+
+    seasonality: {
+      suitability_score:
+        seasonality?.suitability_score ?? null,
+      season_label:
+        seasonality?.season_label ?? null,
+      weather_notes:
+        seasonality?.weather_notes ?? null,
+      accessibility_notes:
+        seasonality?.accessibility_notes ?? null,
+      crowd_notes:
+        seasonality?.crowd_notes ?? null,
+      data_source:
+        seasonality?.data_source ?? null,
+      measured_at:
+        seasonality?.measured_at ?? null,
+    },
   }
 }
 
@@ -304,8 +359,8 @@ export async function getDestinationIntelligence(
  *
  * Database schema:
  *
- * experiences.title          -> mapped to interface `name`
- * experiences.price_from     -> mapped to interface `price`
+ * experiences.title            -> mapped to interface `name`
+ * experiences.price_from      -> mapped to interface `price`
  * experiences.duration_minutes -> converted to hours
  *
  * The interface deliberately hides database-specific naming
@@ -399,7 +454,7 @@ export async function getDestinationExperiences(
       // Database category object -> interface category string
       category: category?.name ?? null,
 
-      // Database `price_from` -> interface `price`
+      // Database `price_from` -> intelligence interface `price`
       price: experience.price_from ?? null,
 
       // Convert minutes -> hours

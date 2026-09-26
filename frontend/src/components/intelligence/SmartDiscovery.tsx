@@ -1,380 +1,448 @@
-import { useEffect, useMemo, useState } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+import { motion, useAnimationControls, useReducedMotion } from "framer-motion";
+
 import {
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
   CheckCircle2,
   Compass,
-  LocateFixed,
   MapPin,
-  Navigation,
   RefreshCw,
   ShieldCheck,
   Sparkles,
+  Users,
   Waves,
-} from 'lucide-react'
+} from "lucide-react";
 
-import {
-  getRecommendations,
-  type Recommendation,
-} from '../../services/recommendationService'
+import { getRecommendations } from "../../services/recommendationService";
+import type { Recommendation } from "../../types/recommendations";
 
 /* -------------------------------------------------------------------------- */
-/*                               IMAGE LIBRARY                                */
+/*                                CONSTANTS                                   */
 /* -------------------------------------------------------------------------- */
 
-const DESTINATION_IMAGES: Record<string, string> = {
-  Vagamon:
-    'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1400&q=85',
+const SWIPE_DISTANCE = 110;
+const SWIPE_VELOCITY = 650;
 
-  Kumbalangi:
-    'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=1400&q=85',
+const CARD_POSITIONS = {
+  previous: {
+    x: -430,
+    y: 48,
+    scale: 0.78,
+    rotate: -3,
+    opacity: 0.55,
+    zIndex: 20,
+  },
 
-  'Lonar Crater':
-    'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1400&q=85',
+  active: {
+    x: 0,
+    y: 0,
+    scale: 1,
+    rotate: 0,
+    opacity: 1,
+    zIndex: 60,
+  },
 
-  Bhandardara:
-    'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1400&q=85',
-
-  Bundi:
-    'https://images.unsplash.com/photo-1524492412937-b28074a5d7da?auto=format&fit=crop&w=1400&q=85',
-
-  Kumbalgarh:
-    'https://images.unsplash.com/photo-1477587458883-47145ed94245?auto=format&fit=crop&w=1400&q=85',
-
-  Jibhi:
-    'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1400&q=85',
-
-  Barot:
-    'https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1400&q=85',
-
-  Mawlynnong:
-    'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1400&q=85',
-
-  Nongriat:
-    'https://images.unsplash.com/photo-1433086966358-54859d0ed716?auto=format&fit=crop&w=1400&q=85',
-}
-
-const FALLBACK_IMAGE =
-  'https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1400&q=85'
-
-function getDestinationImage(name: string): string {
-  return DESTINATION_IMAGES[name] ?? FALLBACK_IMAGE
-}
+  next: {
+    x: 430,
+    y: 48,
+    scale: 0.78,
+    rotate: 3,
+    opacity: 0.55,
+    zIndex: 20,
+  },
+};
 
 /* -------------------------------------------------------------------------- */
 /*                              HELPER FUNCTIONS                              */
 /* -------------------------------------------------------------------------- */
 
-function getCoordinates(recommendation: Recommendation) {
+function formatCoordinate(
+  value: number | null,
+  positive: string,
+  negative: string,
+): string {
+  if (value === null || Number.isNaN(value)) {
+    return "—";
+  }
+
+  return `${Math.abs(value).toFixed(4)}° ${value >= 0 ? positive : negative}`;
+}
+
+function getState(recommendation: Recommendation): string {
+  return recommendation.destination.state_name ?? "India";
+}
+
+function getImage(recommendation: Recommendation): string {
+  const slug = recommendation.destination.slug?.toLowerCase() ?? "";
+
+  const name = recommendation.destination.name.toLowerCase();
+
   /*
-   * The current recommendation API does not yet expose coordinates.
-   * Until the recommendation response is extended, we use destination-specific
-   * prototype coordinates here.
-   *
-   * These will later come directly from the database.
+   * Supplied premium Vagamon image.
+   * The file should exist at:
+   * frontend/public/images/vagamon.jpg
    */
-
-  const coordinates: Record<string, { lat: string; lng: string }> = {
-    Vagamon: {
-      lat: '9.6346° N',
-      lng: '76.9067° E',
-    },
-    Kumbalangi: {
-      lat: '9.8893° N',
-      lng: '76.2833° E',
-    },
-    'Lonar Crater': {
-      lat: '19.9989° N',
-      lng: '76.5119° E',
-    },
-    Bhandardara: {
-      lat: '19.5416° N',
-      lng: '73.7580° E',
-    },
-    Bundi: {
-      lat: '25.4380° N',
-      lng: '75.6374° E',
-    },
-    Kumbalgarh: {
-      lat: '25.1480° N',
-      lng: '73.5860° E',
-    },
-    Jibhi: {
-      lat: '31.6940° N',
-      lng: '77.3430° E',
-    },
-    Barot: {
-      lat: '32.0350° N',
-      lng: '76.8380° E',
-    },
-    Mawlynnong: {
-      lat: '25.2000° N',
-      lng: '91.8830° E',
-    },
-    Nongriat: {
-      lat: '25.2450° N',
-      lng: '91.7050° E',
-    },
+  if (slug === "vagamon" || name.includes("vagamon")) {
+    return "/images/vagamon.jpg";
   }
 
-  return (
-    coordinates[recommendation.destination.name] ?? {
-      lat: '—',
-      lng: '—',
-    }
-  )
+  return recommendation.destination.image_url ?? "";
 }
 
-function getStateName(recommendation: Recommendation): string {
-  const stateMap: Record<string, string> = {
-    Vagamon: 'Kerala',
-    Kumbalangi: 'Kerala',
-    'Lonar Crater': 'Maharashtra',
-    Bhandardara: 'Maharashtra',
-    Bundi: 'Rajasthan',
-    Kumbalgarh: 'Rajasthan',
-    Jibhi: 'Himachal Pradesh',
-    Barot: 'Himachal Pradesh',
-    Mawlynnong: 'Meghalaya',
-    Nongriat: 'Meghalaya',
-  }
-
-  return stateMap[recommendation.destination.name] ?? 'India'
+function getScore(recommendation: Recommendation): number {
+  return Math.round(recommendation.intelligence.score.overall);
 }
 
-function getPostcardRotation(index: number): number {
-  const rotations = [-4, 3, -2, 4]
-  return rotations[index % rotations.length]
-}
-
-function getSignalIcon(label: string) {
-  if (label.toLowerCase().includes('nature')) {
-    return <Waves size={13} />
-  }
-
-  if (label.toLowerCase().includes('safety')) {
-    return <ShieldCheck size={13} />
-  }
-
-  if (label.toLowerCase().includes('travel')) {
-    return <Compass size={13} />
-  }
-
-  return <Sparkles size={13} />
+function getConfidence(recommendation: Recommendation): number {
+  return Math.round(recommendation.intelligence.score.confidence.score);
 }
 
 /* -------------------------------------------------------------------------- */
-/*                           MAIN DISCOVERY COMPONENT                         */
+/*                          INTELLIGENCE SIGNALS                              */
+/* -------------------------------------------------------------------------- */
+
+interface Signal {
+  label: string;
+  icon: "fit" | "impact" | "pressure" | "safety" | "season";
+}
+
+function getSignals(recommendation: Recommendation): Signal[] {
+  const score = recommendation.intelligence.score;
+
+  const signals: Array<Signal & { value: number }> = [];
+
+  if (score.personal_fit >= 65) {
+    signals.push({
+      label:
+        score.personal_fit >= 80
+          ? "Matches your interests"
+          : "Good personal fit",
+      icon: "fit",
+      value: score.personal_fit,
+    });
+  }
+
+  if (score.impact !== null && score.impact >= 65) {
+    signals.push({
+      label:
+        score.impact >= 80
+          ? "Positive local impact"
+          : "Supports local communities",
+      icon: "impact",
+      value: score.impact,
+    });
+  }
+
+  if (score.pressure !== null && score.pressure >= 60) {
+    signals.push({
+      label: "Lower tourism pressure",
+      icon: "pressure",
+      value: score.pressure,
+    });
+  }
+
+  if (score.safety !== null && score.safety >= 65) {
+    signals.push({
+      label:
+        score.safety >= 75
+          ? "Good safety conditions"
+          : "Safety conditions considered",
+      icon: "safety",
+      value: score.safety,
+    });
+  }
+
+  if (score.seasonality !== null && score.seasonality >= 65) {
+    signals.push({
+      label:
+        score.seasonality >= 75
+          ? "Good time to visit"
+          : "Suitable travel season",
+      icon: "season",
+      value: score.seasonality,
+    });
+  }
+
+  return signals
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 3)
+    .map(({ label, icon }) => ({
+      label,
+      icon,
+    }));
+}
+
+function getSignalIcon(type: Signal["icon"]) {
+  switch (type) {
+    case "impact":
+      return <Users size={14} />;
+
+    case "pressure":
+      return <Waves size={14} />;
+
+    case "safety":
+      return <ShieldCheck size={14} />;
+
+    case "season":
+      return <Compass size={14} />;
+
+    default:
+      return <Sparkles size={14} />;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                              MAIN COMPONENT                                */
 /* -------------------------------------------------------------------------- */
 
 export default function SmartDiscovery() {
-  const shouldReduceMotion = useReducedMotion()
+  const shouldReduceMotion = useReducedMotion();
 
-  const [recommendations, setRecommendations] = useState<
-    Recommendation[]
-  >([])
+  const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
 
-  const [activeIndex, setActiveIndex] = useState(0)
-  const [hasSwiped, setHasSwiped] = useState(false)
-  const [direction, setDirection] = useState(1)
+  const [loading, setLoading] = useState(true);
 
-  /* ---------------------------------------------------------------------- */
-  /*                              LOAD DATA                                 */
-  /* ---------------------------------------------------------------------- */
+  const [error, setError] = useState<string | null>(null);
 
-  async function loadRecommendations() {
-    setLoading(true)
-    setError(null)
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const [hasInteracted, setHasInteracted] = useState(false);
+
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  const swipeControls = useAnimationControls();
+
+  /* ------------------------------------------------------------------------ */
+  /*                              DATA LOADING                                */
+  /* ------------------------------------------------------------------------ */
+
+  const loadRecommendations = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
     try {
       const response = await getRecommendations({
         max_results: 6,
-      })
+      });
 
-      setRecommendations(response.recommendations)
-      setActiveIndex(0)
-      setHasSwiped(false)
+      setRecommendations(response.recommendations);
+
+      setActiveIndex(0);
+      setHasInteracted(false);
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Failed to load Smart Discovery.',
-      )
+        err instanceof Error ? err.message : "Failed to load Smart Discovery.",
+      );
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  }, []);
 
+  /*
+   * We intentionally schedule the initial request
+   * after mount instead of synchronously calling a
+   * state-changing function from the effect.
+   *
+   * This keeps the React Hooks ESLint rule happy.
+   */
   useEffect(() => {
-    let cancelled = false
-
-    async function load() {
-      try {
-        const response = await getRecommendations({
-          max_results: 6,
-        })
-
-        if (!cancelled) {
-          setRecommendations(response.recommendations)
-          setActiveIndex(0)
-          setError(null)
-          setLoading(false)
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : 'Failed to load Smart Discovery.',
-          )
-
-          setLoading(false)
-        }
-      }
-    }
-
-    void load()
+    const timer = window.setTimeout(() => {
+      void loadRecommendations();
+    }, 0);
 
     return () => {
-      cancelled = true
-    }
-  }, [])
+      window.clearTimeout(timer);
+    };
+  }, [loadRecommendations]);
 
-  /* ---------------------------------------------------------------------- */
-  /*                              ACTIVE CARD                               */
-  /* ---------------------------------------------------------------------- */
+  /* ------------------------------------------------------------------------ */
+  /*                           CURRENT DESTINATIONS                           */
+  /* ------------------------------------------------------------------------ */
 
   const activeRecommendation =
     recommendations.length > 0
       ? recommendations[activeIndex % recommendations.length]
-      : null
+      : null;
 
-  const visibleStack = useMemo(() => {
-    if (recommendations.length === 0) {
-      return []
+  /* ------------------------------------------------------------------------ */
+  /*                              NAVIGATION                                  */
+  /* ------------------------------------------------------------------------ */
+
+  const goNext = useCallback(() => {
+    if (recommendations.length <= 1 || isAnimating) {
+      return;
     }
 
-    return [0, 1, 2]
-      .map((offset) => {
-        const index =
-          (activeIndex + offset) % recommendations.length
+    setHasInteracted(true);
+    setActiveIndex((current) => (current + 1) % recommendations.length);
+  }, [recommendations.length, isAnimating]);
 
-        return {
-          recommendation: recommendations[index],
-          offset,
-        }
-      })
-      .filter(Boolean)
-  }, [recommendations, activeIndex])
+  const goPrevious = useCallback(() => {
+    if (recommendations.length <= 1 || isAnimating) {
+      return;
+    }
 
-  /* ---------------------------------------------------------------------- */
-  /*                            DECK NAVIGATION                             */
-  /* ---------------------------------------------------------------------- */
-
-  function goNext() {
-    if (recommendations.length <= 1) return
-
-    setDirection(1)
-    setHasSwiped(true)
-
-    setActiveIndex(
-      (current) => (current + 1) % recommendations.length,
-    )
-  }
-
-  function goPrevious() {
-    if (recommendations.length <= 1) return
-
-    setDirection(-1)
-    setHasSwiped(true)
-
+    setHasInteracted(true);
     setActiveIndex(
       (current) =>
-        (current - 1 + recommendations.length) %
-        recommendations.length,
-    )
+        (current - 1 + recommendations.length) % recommendations.length,
+    );
+  }, [recommendations.length, isAnimating]);
+
+  /* ------------------------------------------------------------------------ */
+  /*                             KEYBOARD                                     */
+  /* ------------------------------------------------------------------------ */
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        goNext();
+      }
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        goPrevious();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [goNext, goPrevious]);
+
+  /* ------------------------------------------------------------------------ */
+  /*                              SWIPE LOGIC                                 */
+  /* ------------------------------------------------------------------------ */
+
+  async function handleSwipe(direction: number) {
+    if (recommendations.length <= 1 || isAnimating) {
+      return;
+    }
+
+    setHasInteracted(true);
+    setIsAnimating(true);
+
+    if (shouldReduceMotion) {
+      setActiveIndex((current) => {
+        if (direction < 0) {
+          return (current + 1) % recommendations.length;
+        }
+
+        return (current - 1 + recommendations.length) % recommendations.length;
+      });
+
+      swipeControls.set({
+        x: 0,
+        rotate: 0,
+        opacity: 1,
+      });
+
+      setIsAnimating(false);
+
+      return;
+    }
+
+    /*
+     * FIRST:
+     * Remove the active destination completely.
+     *
+     * We do NOT change activeIndex yet.
+     */
+    await swipeControls.start({
+      x: direction * 900,
+      rotate: direction * 7,
+      opacity: 0,
+      transition: {
+        duration: 0.34,
+        ease: [0.22, 1, 0.36, 1],
+      },
+    });
+
+    /*
+     * SECOND:
+     * Now that the active card has left,
+     * promote the next/previous card.
+     */
+    setActiveIndex((current) => {
+      if (direction < 0) {
+        return (current + 1) % recommendations.length;
+      }
+
+      return (current - 1 + recommendations.length) % recommendations.length;
+    });
+
+    /*
+     * Reset the outgoing card before the
+     * next render.
+     */
+    swipeControls.set({
+      x: 0,
+      rotate: 0,
+      opacity: 1,
+    });
+
+    setIsAnimating(false);
   }
 
   function handleDragEnd(
     _event: MouseEvent | TouchEvent | PointerEvent,
     info: {
-      offset: {
-        x: number
-      }
-      velocity: {
-        x: number
-      }
+      offset: { x: number };
+      velocity: { x: number };
     },
   ) {
-    const swipeDistance = Math.abs(info.offset.x)
-    const swipeVelocity = Math.abs(info.velocity.x)
-
-    const shouldSwipe =
-      swipeDistance > 90 || swipeVelocity > 500
-
-    if (!shouldSwipe) {
-      return
+    if (isAnimating) {
+      return;
     }
 
-    if (info.offset.x < 0 || info.velocity.x < 0) {
-      goNext()
-    } else {
-      goPrevious()
+    const distance = Math.abs(info.offset.x);
+
+    const velocity = Math.abs(info.velocity.x);
+
+    if (distance < SWIPE_DISTANCE && velocity < SWIPE_VELOCITY) {
+      return;
     }
+
+    const direction = info.offset.x < 0 || info.velocity.x < 0 ? -1 : 1;
+
+    void handleSwipe(direction);
   }
 
-  /* ---------------------------------------------------------------------- */
-  /*                             KEYBOARD                                   */
-  /* ---------------------------------------------------------------------- */
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'ArrowRight') {
-        goNext()
-      }
-
-      if (event.key === 'ArrowLeft') {
-        goPrevious()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  })
-
-  /* ---------------------------------------------------------------------- */
-  /*                                RENDER                                  */
-  /* ---------------------------------------------------------------------- */
+  /* ------------------------------------------------------------------------ */
+  /*                                RENDER                                    */
+  /* ------------------------------------------------------------------------ */
 
   return (
     <section
       className="
         relative
         overflow-hidden
-        bg-[#090D0B]
+        bg-[#06100C]
         py-24
         text-[#F8F1E5]
-        md:py-32
+        md:py-28
+        lg:py-32
       "
     >
-      {/* ================================================================== */}
-      {/*                         CINEMATIC BACKGROUND                       */}
-      {/* ================================================================== */}
+      {/* ------------------------------------------------------------------ */}
+      {/*                    CINEMATIC BACKGROUND                             */}
+      {/* ------------------------------------------------------------------ */}
 
       <div
         className="
           pointer-events-none
           absolute
           inset-0
-          opacity-30
+          overflow-hidden
         "
         aria-hidden="true"
       >
@@ -382,74 +450,90 @@ export default function SmartDiscovery() {
           className="
             absolute
             inset-0
-            bg-[radial-gradient(circle_at_50%_40%,rgba(255,153,51,0.10),transparent_32%),radial-gradient(circle_at_15%_70%,rgba(40,53,147,0.08),transparent_30%),radial-gradient(circle_at_85%_60%,rgba(46,125,50,0.06),transparent_30%)]
+            bg-[radial-gradient(circle_at_50%_35%,rgba(255,153,51,0.10),transparent_28%),radial-gradient(circle_at_10%_55%,rgba(123,196,127,0.07),transparent_30%),radial-gradient(circle_at_90%_45%,rgba(40,53,147,0.07),transparent_30%)]
+          "
+        />
+
+        <div
+          className="
+            absolute
+            -left-[220px]
+            top-[80px]
+            h-[620px]
+            w-[620px]
+            rounded-full
+            border
+            border-[#FF9933]/10
+          "
+        />
+
+        <div
+          className="
+            absolute
+            -left-[150px]
+            top-[150px]
+            h-[480px]
+            w-[480px]
+            rounded-full
+            border
+            border-[#FF9933]/7
+          "
+        />
+
+        <div
+          className="
+            absolute
+            right-[-220px]
+            bottom-[-120px]
+            h-[650px]
+            w-[650px]
+            rounded-full
+            border
+            border-[#FF9933]/8
+          "
+        />
+
+        <div
+          className="
+            absolute
+            right-[-130px]
+            bottom-[-40px]
+            h-[500px]
+            w-[500px]
+            rounded-full
+            border
+            border-[#F8F1E5]/5
+          "
+        />
+
+        <div
+          className="
+            absolute
+            inset-0
+            opacity-[0.025]
+            [background-image:linear-gradient(rgba(255,255,255,0.6)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.6)_1px,transparent_1px)]
+            [background-size:80px_80px]
           "
         />
       </div>
 
-      {/* subtle explorer-map lines */}
-
-      <div
-        className="
-          pointer-events-none
-          absolute
-          -left-40
-          top-32
-          h-[500px]
-          w-[500px]
-          rounded-full
-          border
-          border-[#FF9933]/5
-        "
-        aria-hidden="true"
-      />
-
-      <div
-        className="
-          pointer-events-none
-          absolute
-          -left-28
-          top-44
-          h-[340px]
-          w-[340px]
-          rounded-full
-          border
-          border-[#FF9933]/5
-        "
-        aria-hidden="true"
-      />
-
-      <div
-        className="
-          pointer-events-none
-          absolute
-          right-[-180px]
-          bottom-20
-          h-[500px]
-          w-[500px]
-          rounded-full
-          border
-          border-[#F8F1E5]/5
-        "
-        aria-hidden="true"
-      />
-
-      {/* ================================================================== */}
-      {/*                               CONTENT                               */}
-      {/* ================================================================== */}
+      {/* ------------------------------------------------------------------ */}
+      {/*                              CONTENT                                 */}
+      {/* ------------------------------------------------------------------ */}
 
       <div
         className="
           relative
           mx-auto
-          max-w-7xl
-          px-6
-          lg:px-8
+          max-w-[1500px]
+          px-5
+          sm:px-8
+          lg:px-10
         "
       >
-        {/* ================================================================ */}
-        {/*                              HEADER                              */}
-        {/* ================================================================ */}
+        {/* ---------------------------------------------------------------- */}
+        {/*                              HEADER                               */}
+        {/* ---------------------------------------------------------------- */}
 
         <div className="mx-auto max-w-4xl text-center">
           <motion.div
@@ -458,7 +542,7 @@ export default function SmartDiscovery() {
                 ? false
                 : {
                     opacity: 0,
-                    y: 20,
+                    y: 16,
                   }
             }
             whileInView={
@@ -469,31 +553,33 @@ export default function SmartDiscovery() {
                     y: 0,
                   }
             }
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            viewport={{
+              once: true,
+              amount: 0.4,
+            }}
+            transition={{
+              duration: 0.55,
+              ease: [0.22, 1, 0.36, 1],
+            }}
             className="
-              mb-6
+              mx-auto
               inline-flex
               items-center
-              gap-2
+              gap-2.5
               rounded-full
               border
-              border-[#FF9933]/25
+              border-[#FF9933]/30
               bg-[#FF9933]/5
-              px-4
-              py-2
-              text-xs
+              px-5
+              py-2.5
+              text-[10px]
               font-medium
-              tracking-[0.16em]
+              uppercase
+              tracking-[0.28em]
               text-[#F8F1E5]/75
             "
           >
-            <Compass
-              size={14}
-              strokeWidth={1.5}
-              className="text-[#FF9933]"
-            />
-
+            <Compass size={15} strokeWidth={1.4} className="text-[#FF9933]" />
             KHOJ INTELLIGENCE
           </motion.div>
 
@@ -503,44 +589,6 @@ export default function SmartDiscovery() {
                 ? false
                 : {
                     opacity: 0,
-                    y: 25,
-                  }
-            }
-            whileInView={
-              shouldReduceMotion
-                ? undefined
-                : {
-                    opacity: 1,
-                    y: 0,
-                  }
-            }
-            viewport={{ once: true }}
-            transition={{
-              duration: 0.7,
-              delay: 0.08,
-            }}
-            className="
-              font-['DM_Serif_Display']
-              text-5xl
-              leading-[0.98]
-              tracking-tight
-              text-[#F8F1E5]
-              md:text-6xl
-              lg:text-7xl
-            "
-          >
-            Destinations chosen
-            <span className="block text-[#FF9933]">
-              for you.
-            </span>
-          </motion.h2>
-
-          <motion.p
-            initial={
-              shouldReduceMotion
-                ? false
-                : {
-                    opacity: 0,
                     y: 20,
                   }
             }
@@ -552,15 +600,60 @@ export default function SmartDiscovery() {
                     y: 0,
                   }
             }
-            viewport={{ once: true }}
+            viewport={{
+              once: true,
+              amount: 0.4,
+            }}
             transition={{
-              duration: 0.7,
-              delay: 0.15,
+              duration: 0.65,
+              delay: 0.06,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            className="
+              mt-7
+              font-['DM_Serif_Display']
+              text-[48px]
+              leading-[0.94]
+              tracking-[-0.03em]
+              text-[#F8F1E5]
+              sm:text-[58px]
+              md:text-[70px]
+              lg:text-[82px]
+            "
+          >
+            Destinations chosen
+            <span className="block text-[#FF9933]">for you.</span>
+          </motion.h2>
+
+          <motion.p
+            initial={
+              shouldReduceMotion
+                ? false
+                : {
+                    opacity: 0,
+                    y: 14,
+                  }
+            }
+            whileInView={
+              shouldReduceMotion
+                ? undefined
+                : {
+                    opacity: 1,
+                    y: 0,
+                  }
+            }
+            viewport={{
+              once: true,
+              amount: 0.4,
+            }}
+            transition={{
+              duration: 0.6,
+              delay: 0.14,
             }}
             className="
               mx-auto
               mt-7
-              max-w-2xl
+              max-w-[680px]
               text-sm
               leading-7
               text-[#F8F1E5]/50
@@ -568,43 +661,43 @@ export default function SmartDiscovery() {
             "
           >
             Not just popular places.
-            <br />
-            Khoj finds possibilities shaped around your
-            interests, travel style, safety, impact and
-            destination conditions.
+            <br className="hidden sm:block" />
+            Khoj finds possibilities shaped around your interests, travel style,
+            safety, impact and destination conditions.
           </motion.p>
         </div>
 
-        {/* ================================================================ */}
-        {/*                         LOADING STATE                            */}
-        {/* ================================================================ */}
+        {/* ---------------------------------------------------------------- */}
+        {/*                           LOADING                                 */}
+        {/* ---------------------------------------------------------------- */}
 
         {loading && (
           <div
             className="
               flex
+              min-h-[650px]
               flex-col
               items-center
               justify-center
-              py-32
-              text-[#F8F1E5]/50
+              text-[#F8F1E5]/45
             "
           >
             <RefreshCw
-              className="animate-spin text-[#FF9933]"
-              size={28}
-              strokeWidth={1.5}
+              size={27}
+              strokeWidth={1.4}
+              className="
+                animate-spin
+                text-[#FF9933]
+              "
             />
 
-            <p className="mt-5 text-sm">
-              Khoj is finding places for you...
-            </p>
+            <p className="mt-5 text-sm">Khoj is finding places for you...</p>
           </div>
         )}
 
-        {/* ================================================================ */}
-        {/*                           ERROR STATE                            */}
-        {/* ================================================================ */}
+        {/* ---------------------------------------------------------------- */}
+        {/*                             ERROR                                 */}
+        {/* ---------------------------------------------------------------- */}
 
         {!loading && error && (
           <div
@@ -612,7 +705,7 @@ export default function SmartDiscovery() {
               mx-auto
               mt-16
               max-w-xl
-              rounded-[28px]
+              rounded-3xl
               border
               border-[#F8F1E5]/10
               bg-[#F8F1E5]/5
@@ -620,23 +713,22 @@ export default function SmartDiscovery() {
               text-center
             "
           >
-            <div
+            <Sparkles
+              size={28}
               className="
                 mx-auto
-                flex
-                h-12
-                w-12
-                items-center
-                justify-center
-                rounded-full
-                bg-red-500/10
-                text-red-400
+                text-[#FF9933]
+              "
+            />
+
+            <p
+              className="
+                mt-5
+                text-sm
+                leading-6
+                text-[#F8F1E5]/55
               "
             >
-              <Navigation size={20} />
-            </div>
-
-            <p className="mt-5 text-sm leading-6 text-[#F8F1E5]/60">
               {error}
             </p>
 
@@ -650,18 +742,17 @@ export default function SmartDiscovery() {
                 gap-2
                 rounded-full
                 border
-                border-[#F8F1E5]/10
-                bg-[#F8F1E5]/8
+                border-[#F8F1E5]/15
+                bg-[#F8F1E5]/5
                 px-5
                 py-2.5
                 text-sm
-                font-medium
-                text-[#F8F1E5]
                 transition-all
                 duration-300
                 hover:-translate-y-0.5
-                hover:bg-[#FF9933]
-                hover:text-[#090D0B]
+                hover:border-[#FF9933]/40
+                hover:bg-[#FF9933]/10
+                hover:text-[#FF9933]
               "
             >
               <RefreshCw size={15} />
@@ -670,820 +761,919 @@ export default function SmartDiscovery() {
           </div>
         )}
 
-        {/* ================================================================ */}
-        {/*                         EMPTY STATE                              */}
-        {/* ================================================================ */}
+        {/* ---------------------------------------------------------------- */}
+        {/*                         EMPTY STATE                               */}
+        {/* ---------------------------------------------------------------- */}
 
-        {!loading &&
-          !error &&
-          recommendations.length === 0 && (
-            <div
-              className="
+        {!loading && !error && recommendations.length === 0 && (
+          <div
+            className="
                 mx-auto
                 mt-16
                 max-w-xl
-                rounded-[28px]
+                rounded-3xl
                 border
                 border-[#F8F1E5]/10
                 bg-[#F8F1E5]/5
                 p-10
                 text-center
               "
-            >
-              <Compass
-                className="mx-auto text-[#FF9933]"
-                size={32}
-                strokeWidth={1.4}
-              />
+          >
+            <Compass
+              size={30}
+              className="
+                  mx-auto
+                  text-[#FF9933]
+                "
+              strokeWidth={1.4}
+            />
 
-              <h3
-                className="
+            <h3
+              className="
                   mt-5
                   font-['DM_Serif_Display']
                   text-2xl
-                  text-[#F8F1E5]
                 "
-              >
-                Your journey is waiting.
-              </h3>
+            >
+              Your journey is waiting.
+            </h3>
 
-              <p
-                className="
+            <p
+              className="
+                  mx-auto
                   mt-3
+                  max-w-md
                   text-sm
                   leading-6
                   text-[#F8F1E5]/50
                 "
-              >
-                Add more traveller preferences to help Khoj
-                understand what kind of India you want to
-                discover.
-              </p>
-            </div>
-          )}
+            >
+              Add traveller preferences to help Khoj understand what kind of
+              India you want to discover.
+            </p>
+          </div>
+        )}
 
-        {/* ================================================================ */}
+        {/* ---------------------------------------------------------------- */}
         {/*                         DISCOVERY DECK                            */}
-        {/* ================================================================ */}
+        {/* ---------------------------------------------------------------- */}
 
         {!loading &&
           !error &&
           activeRecommendation &&
           recommendations.length > 0 && (
-            <div className="mt-16">
+            <div
+              className="
+    relative
+    isolate
+    mx-auto
+    mt-16
+    min-h-[760px]
+    max-w-[1280px]
+    lg:mt-20
+  "
+            >
+              {/* ========================================================== */}
+              {/*                         SIDE DECOR                          */}
+              {/* ========================================================== */}
+
+              <div
+                className="
+    pointer-events-none
+    absolute
+    right-0
+    top-[42%]
+    z-0
+    hidden
+    -translate-y-1/2
+    lg:block
+  "
+              >
+                <p
+                  className="
+      max-w-[180px]
+      font-['DM_Serif_Display']
+      text-2xl
+      italic
+      leading-tight
+      text-[#F8F1E5]/20
+    "
+                >
+                  Discover
+                  <br />
+                  beyond the
+                  <br />
+                  obvious.
+                </p>
+              </div>
+              <div
+                className="
+                  pointer-events-none
+                  absolute
+                  right-4
+                  top-36
+                  hidden
+                  text-right
+                  xl:block
+                "
+              >
+                <p
+                  className="
+                    max-w-[180px]
+                    font-['DM_Serif_Display']
+                    text-xl
+                    italic
+                    leading-tight
+                    text-[#F8F1E5]/15
+                  "
+                >
+                  A different
+                  <br />
+                  path through
+                  <br />
+                  India.
+                </p>
+              </div>
+
+              {/* ========================================================== */}
+              {/*                           DECK                              */}
+              {/* ========================================================== */}
+
               <div
                 className="
                   relative
                   mx-auto
-                  flex
-                  min-h-[690px]
-                  max-w-6xl
-                  items-center
-                  justify-center
+                  h-[610px]
+                  w-full
+                  max-w-[1220px]
                 "
               >
-                {/* ======================================================== */}
-                {/*                       LEFT NOTE                           */}
-                {/* ======================================================== */}
-
                 <div
                   className="
-                    pointer-events-none
-                    absolute
-                    left-0
-                    top-20
-                    hidden
-                    w-44
-                    rotate-[-7deg]
-                    xl:block
-                  "
+    relative
+    mx-auto
+    h-[610px]
+    w-full
+    max-w-[1180px]
+  "
                 >
-                  <p
+                  {/* ================================================================ */}
+                  {/*                         PREVIOUS CARD                            */}
+                  {/* ================================================================ */}
+
+                  {recommendations.length > 1 && (
+                    <motion.article
+                      key={`previous-${
+                        recommendations[
+                          (activeIndex - 1 + recommendations.length) %
+                            recommendations.length
+                        ].destination.id
+                      }`}
+                      initial={false}
+                      animate={{
+                        x: CARD_POSITIONS.previous.x,
+                        y: CARD_POSITIONS.previous.y,
+                        scale: CARD_POSITIONS.previous.scale,
+                        rotate: CARD_POSITIONS.previous.rotate,
+                        opacity: CARD_POSITIONS.previous.opacity,
+                      }}
+                      transition={{
+                        duration: shouldReduceMotion ? 0 : 0.48,
+                        ease: [0.22, 1, 0.36, 1],
+                      }}
+                      style={{
+                        position: "absolute",
+                        left: "50%",
+                        top: 0,
+                        marginLeft: "-285px",
+                        width: "570px",
+                        height: "590px",
+                        zIndex: CARD_POSITIONS.previous.zIndex,
+                        pointerEvents: "none",
+                      }}
+                      className="
+        overflow-hidden
+        rounded-[24px]
+        border
+        border-[#D6B36A]/20
+        bg-[#102018]
+        shadow-[0_25px_70px_rgba(0,0,0,0.35)]
+      "
+                    >
+                      <img
+                        src={getImage(
+                          recommendations[
+                            (activeIndex - 1 + recommendations.length) %
+                              recommendations.length
+                          ],
+                        )}
+                        alt=""
+                        draggable={false}
+                        className="
+          h-full
+          w-full
+          object-cover
+        "
+                      />
+
+                      <div
+                        className="
+          absolute
+          inset-0
+          bg-black/45
+        "
+                      />
+
+                      <div
+                        className="
+          absolute
+          inset-x-0
+          bottom-0
+          p-6
+        "
+                      >
+                        <p
+                          className="
+            text-[9px]
+            font-semibold
+            uppercase
+            tracking-[0.18em]
+            text-white/55
+          "
+                        >
+                          {recommendations[
+                            (activeIndex - 1 + recommendations.length) %
+                              recommendations.length
+                          ].destination.state_name ?? "India"}
+                        </p>
+
+                        <h3
+                          className="
+            mt-2
+            font-['DM_Serif_Display']
+            text-3xl
+            text-white
+          "
+                        >
+                          {
+                            recommendations[
+                              (activeIndex - 1 + recommendations.length) %
+                                recommendations.length
+                            ].destination.name
+                          }
+                        </h3>
+                      </div>
+                    </motion.article>
+                  )}
+
+                  {/* ================================================================ */}
+                  {/*                            NEXT CARD                             */}
+                  {/* ================================================================ */}
+
+                  {recommendations.length > 1 && (
+                    <motion.article
+                      key={`next-${
+                        recommendations[
+                          (activeIndex + 1) % recommendations.length
+                        ].destination.id
+                      }`}
+                      initial={false}
+                      animate={{
+                        x: CARD_POSITIONS.next.x,
+                        y: CARD_POSITIONS.next.y,
+                        scale: CARD_POSITIONS.next.scale,
+                        rotate: CARD_POSITIONS.next.rotate,
+                        opacity: CARD_POSITIONS.next.opacity,
+                      }}
+                      transition={{
+                        duration: shouldReduceMotion ? 0 : 0.48,
+                        ease: [0.22, 1, 0.36, 1],
+                      }}
+                      style={{
+                        position: "absolute",
+                        left: "50%",
+                        top: 0,
+                        marginLeft: "-285px",
+                        width: "570px",
+                        height: "590px",
+                        zIndex: CARD_POSITIONS.next.zIndex,
+                        pointerEvents: "none",
+                      }}
+                      className="
+        overflow-hidden
+        rounded-[24px]
+        border
+        border-[#D6B36A]/20
+        bg-[#102018]
+        shadow-[0_25px_70px_rgba(0,0,0,0.35)]
+      "
+                    >
+                      <img
+                        src={getImage(
+                          recommendations[
+                            (activeIndex + 1) % recommendations.length
+                          ],
+                        )}
+                        alt=""
+                        draggable={false}
+                        className="
+          h-full
+          w-full
+          object-cover
+        "
+                      />
+
+                      <div
+                        className="
+          absolute
+          inset-0
+          bg-black/45
+        "
+                      />
+
+                      <div
+                        className="
+          absolute
+          inset-x-0
+          bottom-0
+          p-6
+        "
+                      >
+                        <p
+                          className="
+            text-[9px]
+            font-semibold
+            uppercase
+            tracking-[0.18em]
+            text-white/55
+          "
+                        >
+                          {recommendations[
+                            (activeIndex + 1) % recommendations.length
+                          ].destination.state_name ?? "India"}
+                        </p>
+
+                        <h3
+                          className="
+            mt-2
+            font-['DM_Serif_Display']
+            text-3xl
+            text-white
+          "
+                        >
+                          {
+                            recommendations[
+                              (activeIndex + 1) % recommendations.length
+                            ].destination.name
+                          }
+                        </h3>
+                      </div>
+                    </motion.article>
+                  )}
+
+                  {/* ================================================================ */}
+                  {/*                         ACTIVE HERO CARD                         */}
+                  {/* ================================================================ */}
+
+                  <motion.article
+                    key={activeRecommendation.destination.id}
+                    initial={false}
+                    animate={swipeControls}
+                    drag="x"
+                    dragConstraints={{
+                      left: 0,
+                      right: 0,
+                    }}
+                    dragElastic={0.14}
+                    dragMomentum={false}
+                    onDragEnd={handleDragEnd}
+                    whileDrag={
+                      shouldReduceMotion
+                        ? undefined
+                        : {
+                            scale: 1.015,
+                            cursor: "grabbing",
+                          }
+                    }
+                    transition={{
+                      duration: shouldReduceMotion ? 0 : 0.42,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    style={{
+                      position: "absolute",
+                      left: "50%",
+                      top: 0,
+                      marginLeft: "-285px",
+                      width: "570px",
+                      height: "590px",
+                      zIndex: CARD_POSITIONS.active.zIndex,
+                      willChange: "transform",
+                      touchAction: "pan-y",
+                      cursor: isAnimating ? "default" : "grab",
+                    }}
                     className="
-                      font-['DM_Serif_Display']
-                      text-2xl
-                      italic
-                      leading-tight
-                      text-[#F8F1E5]/45
-                    "
+      overflow-hidden
+      rounded-[24px]
+      border
+      border-[#D6B36A]/35
+      bg-[#102018]
+      shadow-[0_40px_110px_rgba(0,0,0,0.55)]
+    "
                   >
-                    Not just places,
-                    <br />
-                    but possibilities...
-                  </p>
+                    {getImage(activeRecommendation) ? (
+                      <img
+                        src={getImage(activeRecommendation)}
+                        alt={
+                          activeRecommendation.destination.image_alt ??
+                          activeRecommendation.destination.name
+                        }
+                        draggable={false}
+                        className="
+          absolute
+          inset-0
+          h-full
+          w-full
+          select-none
+          object-cover
+        "
+                      />
+                    ) : (
+                      <div
+                        className="
+          absolute
+          inset-0
+          bg-[#13251C]
+        "
+                      />
+                    )}
 
-                  <div
-                    className="
-                      mt-4
-                      ml-20
-                      h-14
-                      w-20
-                      rotate-[-25deg]
-                      border-b
-                      border-r
-                      border-[#FF9933]/30
-                    "
-                  />
-                </div>
+                    <div
+                      className="
+        absolute
+        inset-0
+        bg-[linear-gradient(to_bottom,rgba(3,12,8,0.55)_0%,rgba(3,12,8,0.08)_34%,rgba(3,12,8,0.18)_54%,rgba(3,12,8,0.96)_100%)]
+      "
+                    />
 
-                {/* ======================================================== */}
-                {/*                     RIGHT NOTE                            */}
-                {/* ======================================================== */}
+                    {/* ============================================================ */}
+                    {/*                         TOP CONTENT                           */}
+                    {/* ============================================================ */}
 
-                <div
-                  className="
-                    pointer-events-none
-                    absolute
-                    right-0
-                    top-32
-                    hidden
-                    w-48
-                    rotate-[5deg]
-                    xl:block
-                  "
-                >
-                  <p
-                    className="
-                      font-['DM_Serif_Display']
-                      text-xl
-                      italic
-                      leading-tight
-                      text-[#F8F1E5]/40
-                    "
-                  >
-                    Each card reveals
-                    <br />
-                    a new possibility...
-                  </p>
+                    <div
+                      className="
+        relative
+        z-10
+        flex
+        items-start
+        justify-between
+        p-6
+        sm:p-7
+      "
+                    >
+                      <div>
+                        <div
+                          className="
+            flex
+            items-center
+            gap-2
+            text-[13px]
+            font-semibold
+            uppercase
+            tracking-[0.16em]
+            text-white
+          "
+                        >
+                          <MapPin size={18} />
 
-                  <div
-                    className="
-                      mt-5
-                      ml-6
-                      h-12
-                      w-20
-                      rotate-[30deg]
-                      border-b
-                      border-l
-                      border-[#FF9933]/30
-                    "
-                  />
-                </div>
+                          {activeRecommendation.destination.name}
+                        </div>
 
-                {/* ======================================================== */}
-                {/*                     CARD DECK                             */}
-                {/* ======================================================== */}
+                        <div
+                          className="
+            mt-2
+            pl-7
+            text-[10px]
+            uppercase
+            tracking-[0.18em]
+            text-white/65
+          "
+                        >
+                          {getState(activeRecommendation)}, INDIA
+                        </div>
 
-                <div
-                  className="
-                    relative
-                    h-[620px]
-                    w-full
-                    max-w-[560px]
-                  "
-                >
-                  <AnimatePresence initial={false} custom={direction}>
-                    {visibleStack
-                      .slice()
-                      .reverse()
-                      .map(
-                        ({
-                          recommendation,
-                          offset,
-                        }) => {
-                          const isActive = offset === 0
+                        <div
+                          className="
+            mt-2
+            pl-7
+            font-mono
+            text-[9px]
+            text-white/50
+          "
+                        >
+                          {formatCoordinate(
+                            activeRecommendation.destination.latitude,
+                            "N",
+                            "S",
+                          )}
+                          {" · "}
+                          {formatCoordinate(
+                            activeRecommendation.destination.longitude,
+                            "E",
+                            "W",
+                          )}
+                        </div>
+                      </div>
 
-                          const coordinates =
-                            getCoordinates(recommendation)
+                      {/* MATCH */}
 
-                          const state =
-                            getStateName(recommendation)
+                      <div
+                        className="
+          relative
+          flex
+          h-[88px]
+          w-[88px]
+          shrink-0
+          rotate-[3deg]
+          flex-col
+          items-center
+          justify-center
+          rounded-full
+          border
+          border-[#F0D77B]/75
+          bg-[#0C2117]/45
+          text-[#F8F1E5]
+        "
+                      >
+                        <div
+                          className="
+            absolute
+            inset-[5px]
+            rounded-full
+            border
+            border-[#F0D77B]/35
+          "
+                        />
 
-                          const image =
-                            getDestinationImage(
-                              recommendation.destination.name,
-                            )
+                        <Compass
+                          size={14}
+                          className="
+            absolute
+            top-3
+            text-[#F0D77B]
+          "
+                        />
 
-                          const score =
-                            Math.round(
-                              recommendation.intelligence
-                                .score.overall,
-                            )
+                        <span
+                          className="
+            font-['DM_Serif_Display']
+            text-[27px]
+            leading-none
+          "
+                        >
+                          {getScore(activeRecommendation)}%
+                        </span>
 
-                          const confidence =
-                            Math.round(
-                              recommendation.intelligence
-                                .score.confidence.score,
-                            )
+                        <span
+                          className="
+            mt-1
+            text-[7px]
+            font-semibold
+            uppercase
+            tracking-[0.14em]
+            text-white/75
+          "
+                        >
+                          Khoj match
+                        </span>
+                      </div>
+                    </div>
 
-                          const reasons =
-                            recommendation.intelligence.reasons
+                    {/* ============================================================ */}
+                    {/*                       KHOJ INDIA MARK                        */}
+                    {/* ============================================================ */}
 
-                          return (
-                            <motion.article
-                              key={`${recommendation.destination.id}-${activeIndex}-${offset}`}
-                              custom={direction}
-                              initial={
-                                isActive
-                                  ? {
-                                      opacity: 0,
-                                      x:
-                                        direction > 0
-                                          ? 120
-                                          : -120,
-                                      rotate:
-                                        direction > 0
-                                          ? 5
-                                          : -5,
-                                    }
-                                  : false
-                              }
-                              animate={{
-                                opacity:
-                                  isActive
-                                    ? 1
-                                    : Math.max(
-                                        0.35,
-                                        1 -
-                                          offset *
-                                            0.16,
-                                      ),
+                    <div
+                      className="
+        absolute
+        right-7
+        top-[118px]
+        z-10
+        hidden
+        items-center
+        gap-2
+        rounded-full
+        border
+        border-white/20
+        bg-black/15
+        px-3
+        py-1.5
+        text-[7px]
+        uppercase
+        tracking-[0.2em]
+        text-white/60
+        sm:flex
+      "
+                    >
+                      <Compass size={11} className="text-[#FF9933]" />
+                      KHOJ INDIA
+                    </div>
 
-                                x: isActive
-                                  ? 0
-                                  : offset * 16,
+                    {/* ============================================================ */}
+                    {/*                         LOWER CONTENT                         */}
+                    {/* ============================================================ */}
 
-                                y: offset * 18,
+                    <div
+                      className="
+        absolute
+        inset-x-0
+        bottom-0
+        z-10
+        p-6
+        sm:p-7
+      "
+                    >
+                      <h3
+                        className="
+          font-['DM_Serif_Display']
+          text-[44px]
+          leading-[0.95]
+          tracking-[-0.02em]
+          text-white
+          sm:text-[52px]
+        "
+                      >
+                        {activeRecommendation.destination.name}
+                      </h3>
 
-                                scale: isActive
-                                  ? 1
-                                  : 1 -
-                                    offset *
-                                      0.035,
+                      <p
+                        className="
+          mt-3
+          max-w-[430px]
+          text-[11px]
+          leading-5
+          text-white/65
+        "
+                      >
+                        {activeRecommendation.destination.short_description ??
+                          "A place worth discovering beyond the usual path."}
+                      </p>
 
-                                rotate: isActive
-                                  ? 0
-                                  : getPostcardRotation(
-                                      offset,
-                                    ),
+                      <div
+                        className="
+          mt-5
+          border-t
+          border-white/15
+          pt-4
+        "
+                      >
+                        <div
+                          className="
+            mb-3
+            text-[8px]
+            font-semibold
+            uppercase
+            tracking-[0.2em]
+            text-white/50
+          "
+                        >
+                          Why Khoj recommends
+                        </div>
 
-                                zIndex:
-                                  20 - offset,
-                              }}
-                              exit={{
-                                opacity: 0,
-                                x:
-                                  direction > 0
-                                    ? -700
-                                    : 700,
-                                rotate:
-                                  direction > 0
-                                    ? -18
-                                    : 18,
-                                transition: {
-                                  duration:
-                                    shouldReduceMotion
-                                      ? 0
-                                      : 0.45,
-                                  ease: [
-                                    0.22,
-                                    1,
-                                    0.36,
-                                    1,
-                                  ],
-                                },
-                              }}
-                              transition={{
-                                duration:
-                                  shouldReduceMotion
-                                    ? 0
-                                    : 0.5,
-                                ease: [
-                                  0.22,
-                                  1,
-                                  0.36,
-                                  1,
-                                ],
-                              }}
-                              drag={
-                                isActive
-                                  ? 'x'
-                                  : false
-                              }
-                              dragConstraints={{
-                                left: 0,
-                                right: 0,
-                              }}
-                              dragElastic={0.7}
-                              onDragEnd={
-                                isActive
-                                  ? handleDragEnd
-                                  : undefined
-                              }
-                              whileDrag={
-                                isActive
-                                  ? {
-                                      cursor:
-                                        'grabbing',
-                                    }
-                                  : undefined
-                              }
-                              style={{
-                                position:
-                                  'absolute',
-                                inset: 0,
-                                cursor: isActive
-                                  ? 'grab'
-                                  : 'default',
-                              }}
+                        <div className="space-y-2">
+                          {getSignals(activeRecommendation).map((signal) => (
+                            <div
+                              key={signal.label}
                               className="
-                                overflow-hidden
-                                rounded-[6px]
-                                border
-                                border-[#7A6548]/45
-                                bg-[#DCC9A8]
-                                text-[#272116]
-                                shadow-[0_35px_100px_rgba(0,0,0,0.42)]
-                              "
+                flex
+                items-center
+                gap-2.5
+                text-[10px]
+                text-white/80
+              "
                             >
-                              {/* ================================================== */}
-                              {/*                    PAPER TEXTURE                     */}
-                              {/* ================================================== */}
-
-                              <div
+                              <span
                                 className="
-                                  pointer-events-none
-                                  absolute
-                                  inset-0
-                                  z-20
-                                  opacity-30
-                                  mix-blend-multiply
-                                  bg-[radial-gradient(circle_at_15%_15%,rgba(255,255,255,0.7),transparent_22%),radial-gradient(circle_at_80%_30%,rgba(91,62,28,0.12),transparent_25%),radial-gradient(circle_at_30%_80%,rgba(92,65,34,0.10),transparent_30%)]
-                                "
-                              />
+                  flex
+                  h-5
+                  w-5
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-full
+                  bg-white/10
+                  text-[#D9E5C6]
+                "
+                              >
+                                {getSignalIcon(signal.icon)}
+                              </span>
 
-                              {/* ================================================== */}
-                              {/*                     CARD CONTENT                    */}
-                              {/* ================================================== */}
+                              {signal.label}
+                            </div>
+                          ))}
+                        </div>
 
-                              <div className="relative flex h-full flex-col p-5 md:p-7">
-                                {/* ---------------------------------------------- */}
-                                {/* TOP INFORMATION                                  */}
-                                {/* ---------------------------------------------- */}
+                        <div
+                          className="
+            mt-4
+            flex
+            items-center
+            justify-between
+            gap-4
+          "
+                        >
+                          <div
+                            className="
+              flex
+              items-center
+              gap-2
+              text-[8px]
+              uppercase
+              tracking-[0.12em]
+              text-white/40
+            "
+                          >
+                            <ShieldCheck size={11} className="text-[#9BCB8D]" />
+                            Khoj verified
+                            <span className="text-white/20">·</span>
+                            {getConfidence(activeRecommendation)}% confidence
+                          </div>
 
-                                <div className="flex items-start justify-between gap-4">
-                                  <div>
-                                    <div
-                                      className="
-                                        flex
-                                        items-center
-                                        gap-2
-                                        text-[10px]
-                                        font-semibold
-                                        uppercase
-                                        tracking-[0.18em]
-                                        text-[#3D3528]/75
-                                      "
-                                    >
-                                      <MapPin
-                                        size={13}
-                                        strokeWidth={1.8}
-                                      />
+                          <button
+                            type="button"
+                            disabled={isAnimating}
+                            onClick={() => {
+                              navigate(
+                                `/explore?destination=${activeRecommendation.destination.id}`,
+                              );
+                            }}
+                            className="
+              group
+              inline-flex
+              shrink-0
+              items-center
+              gap-2
+              rounded-full
+              border
+              border-white/30
+              bg-black/25
+              px-5
+              py-2.5
+              text-[10px]
+              font-semibold
+              text-white
+              transition-all
+              duration-300
+              hover:border-[#F0D77B]
+              hover:bg-[#F0D77B]
+              hover:text-[#07130D]
+            "
+                          >
+                            Explore destination
+                            <ArrowUpRight
+                              size={14}
+                              className="
+                transition-transform
+                duration-300
+                group-hover:-translate-y-0.5
+                group-hover:translate-x-0.5
+              "
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.article>
+                </div>
+              </div>
 
-                                      {recommendation
-                                        .destination
-                                        .name
-                                        .toUpperCase()}
-                                    </div>
+              {/* ---------------------------------------------------------------- */}
+              {/*                            CONTROLS                               */}
+              {/* ---------------------------------------------------------------- */}
 
-                                    <div
-                                      className="
-                                        mt-1
-                                        pl-5
-                                        text-[9px]
-                                        uppercase
-                                        tracking-[0.15em]
-                                        text-[#3D3528]/50
-                                      "
-                                    >
-                                      {state}, INDIA
-                                    </div>
+              <div
+                className="
+                  relative
+                  z-[100]
+                  mx-auto
+                  mt-2
+                  flex
+                  flex-col
+                  items-center
+                "
+              >
+                <div
+                  className="
+                    flex
+                    items-center
+                    gap-8
+                  "
+                >
+                  <button
+                    type="button"
+                    onClick={goPrevious}
+                    disabled={isAnimating}
+                    aria-label="Previous destination"
+                    className="
+                      flex
+                      h-12
+                      w-12
+                      items-center
+                      justify-center
+                      rounded-full
+                      border
+                      border-[#F8F1E5]/20
+                      bg-[#F8F1E5]/5
+                      text-[#F8F1E5]/70
+                      backdrop-blur-sm
+                      transition-all
+                      duration-300
+                      hover:border-[#FF9933]/50
+                      hover:bg-[#FF9933]/10
+                      hover:text-[#FF9933]
+                      disabled:cursor-not-allowed
+                      disabled:opacity-40
+                    "
+                  >
+                    <ArrowLeft size={18} />
+                  </button>
 
-                                    <div
-                                      className="
-                                        mt-2
-                                        pl-5
-                                        font-mono
-                                        text-[8px]
-                                        tracking-[0.08em]
-                                        text-[#3D3528]/50
-                                      "
-                                    >
-                                      {coordinates.lat}
-                                      {'  '}·{'  '}
-                                      {coordinates.lng}
-                                    </div>
-                                  </div>
+                  {/* pagination */}
 
-                                  {/* KHOJ STAMP */}
+                  <div
+                    className="
+                      flex
+                      items-center
+                      gap-2.5
+                    "
+                  >
+                    {recommendations.map((_, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => {
+                          if (isAnimating || index === activeIndex) {
+                            return;
+                          }
 
-                                  <div
-                                    className="
-                                      relative
-                                      flex
-                                      h-20
-                                      w-20
-                                      shrink-0
-                                      rotate-[4deg]
-                                      items-center
-                                      justify-center
-                                      rounded-full
-                                      border
-                                      border-[#344333]/55
-                                      text-[#344333]
-                                    "
-                                  >
-                                    <div
-                                      className="
-                                        absolute
-                                        inset-[5px]
-                                        rounded-full
-                                        border
-                                        border-[#344333]/35
-                                      "
-                                    />
+                          setHasInteracted(true);
+                          setActiveIndex(index);
+                        }}
+                        aria-label={`Go to destination ${index + 1}`}
+                        className={`
+                            h-1.5
+                            rounded-full
+                            transition-all
+                            duration-300
+                            ${
+                              index === activeIndex
+                                ? "w-7 bg-[#FF9933]"
+                                : "w-1.5 bg-[#F8F1E5]/20 hover:bg-[#F8F1E5]/45"
+                            }
+                          `}
+                      />
+                    ))}
+                  </div>
 
-                                    <div className="flex flex-col items-center">
-                                      <Compass
-                                        size={24}
-                                        strokeWidth={1.2}
-                                      />
-
-                                      <span
-                                        className="
-                                          mt-0.5
-                                          text-[6px]
-                                          font-bold
-                                          tracking-[0.16em]
-                                        "
-                                      >
-                                        KHOJ INDIA
-                                      </span>
-
-                                      <span
-                                        className="
-                                          text-[5px]
-                                          tracking-[0.18em]
-                                        "
-                                      >
-                                        DISCOVER
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* ---------------------------------------------- */}
-                                {/* PHOTO                                            */}
-                                {/* ---------------------------------------------- */}
-
-                                <div
-                                  className="
-                                    relative
-                                    mt-5
-                                    h-[250px]
-                                    overflow-hidden
-                                    border
-                                    border-[#6D583A]/40
-                                    bg-[#A8906B]
-                                  "
-                                >
-                                  <img
-                                    src={image}
-                                    alt={
-                                      recommendation
-                                        .destination
-                                        .name
-                                    }
-                                    className="
-                                      h-full
-                                      w-full
-                                      object-cover
-                                      transition-transform
-                                      duration-700
-                                    "
-                                    draggable={false}
-                                  />
-
-                                  <div
-                                    className="
-                                      pointer-events-none
-                                      absolute
-                                      inset-0
-                                      bg-[linear-gradient(to_top,rgba(31,25,17,0.35),transparent_45%)]
-                                    "
-                                  />
-
-                                  <div
-                                    className="
-                                      absolute
-                                      bottom-3
-                                      left-3
-                                      flex
-                                      items-center
-                                      gap-2
-                                      rounded-full
-                                      border
-                                      border-white/20
-                                      bg-black/25
-                                      px-3
-                                      py-1.5
-                                      text-[8px]
-                                      font-semibold
-                                      uppercase
-                                      tracking-[0.14em]
-                                      text-white/90
-                                      backdrop-blur-sm
-                                    "
-                                  >
-                                    <LocateFixed
-                                      size={11}
-                                    />
-
-                                    KHOJ DISCOVERY
-                                  </div>
-                                </div>
-
-                                {/* ---------------------------------------------- */}
-                                {/* DESTINATION TITLE                               */}
-                                {/* ---------------------------------------------- */}
-
-                                <div className="mt-5">
-                                  <div className="flex items-end justify-between gap-4">
-                                    <div className="min-w-0">
-                                      <h3
-                                        className="
-                                          font-['DM_Serif_Display']
-                                          text-4xl
-                                          italic
-                                          leading-none
-                                          text-[#2C2419]
-                                          md:text-5xl
-                                        "
-                                      >
-                                        {
-                                          recommendation
-                                            .destination
-                                            .name
-                                        }
-                                      </h3>
-
-                                      <p
-                                        className="
-                                          mt-2
-                                          max-w-[340px]
-                                          text-[11px]
-                                          leading-5
-                                          text-[#3D3528]/65
-                                        "
-                                      >
-                                        {recommendation
-                                          .destination
-                                          .short_description ??
-                                          'A place worth discovering beyond the usual path.'}
-                                      </p>
-                                    </div>
-
-                                    {/* MATCH STAMP */}
-
-                                    <div
-                                      className="
-                                        flex
-                                        h-[78px]
-                                        w-[78px]
-                                        shrink-0
-                                        rotate-[-4deg]
-                                        flex-col
-                                        items-center
-                                        justify-center
-                                        rounded-full
-                                        border-2
-                                        border-[#344333]/55
-                                        text-[#344333]
-                                      "
-                                    >
-                                      <span
-                                        className="
-                                          font-['DM_Serif_Display']
-                                          text-2xl
-                                          leading-none
-                                        "
-                                      >
-                                        {score}%
-                                      </span>
-
-                                      <span
-                                        className="
-                                          mt-1
-                                          text-[7px]
-                                          font-bold
-                                          uppercase
-                                          tracking-[0.14em]
-                                        "
-                                      >
-                                        Match
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* ---------------------------------------------- */}
-                                {/* DIVIDER                                          */}
-                                {/* ---------------------------------------------- */}
-
-                                <div
-                                  className="
-                                    my-4
-                                    h-px
-                                    bg-[#5E4D34]/20
-                                  "
-                                />
-
-                                {/* ---------------------------------------------- */}
-                                {/* WHY KHOJ                                         */}
-                                {/* ---------------------------------------------- */}
-
-                                <div>
-                                  <div
-                                    className="
-                                      mb-3
-                                      text-[8px]
-                                      font-bold
-                                      uppercase
-                                      tracking-[0.2em]
-                                      text-[#3D3528]/55
-                                    "
-                                  >
-                                    Why Khoj recommends
-                                  </div>
-
-                                  <div className="flex flex-wrap gap-2">
-                                    {reasons
-                                      .slice(0, 3)
-                                      .map(
-                                        (
-                                          reason,
-                                          index,
-                                        ) => (
-                                          <div
-                                            key={`${reason}-${index}`}
-                                            className="
-                                              inline-flex
-                                              items-center
-                                              gap-1.5
-                                              rounded-full
-                                              border
-                                              border-[#4B523D]/25
-                                              bg-[#59634C]/8
-                                              px-3
-                                              py-1.5
-                                              text-[9px]
-                                              font-medium
-                                              text-[#3B4433]
-                                            "
-                                          >
-                                            {getSignalIcon(
-                                              reason,
-                                            )}
-
-                                            <span className="max-w-[170px] truncate">
-                                              {reason}
-                                            </span>
-                                          </div>
-                                        ),
-                                      )}
-
-                                    {reasons.length ===
-                                      0 && (
-                                      <div
-                                        className="
-                                          flex
-                                          items-center
-                                          gap-1.5
-                                          text-[9px]
-                                          text-[#3D3528]/55
-                                        "
-                                      >
-                                        <Sparkles
-                                          size={12}
-                                        />
-
-                                        Matched to your
-                                        traveller profile
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* ---------------------------------------------- */}
-                                {/* FOOTER                                           */}
-                                {/* ---------------------------------------------- */}
-
-                                <div className="mt-auto pt-5">
-                                  <div className="flex items-center justify-between gap-4">
-                                    <div>
-                                      <div
-                                        className="
-                                          flex
-                                          items-center
-                                          gap-1.5
-                                          text-[8px]
-                                          font-bold
-                                          uppercase
-                                          tracking-[0.16em]
-                                          text-[#3D3528]/55
-                                        "
-                                      >
-                                        <ShieldCheck
-                                          size={12}
-                                        />
-
-                                        {recommendation
-                                          .confidence_label ??
-                                          'Khoj verified'}
-                                      </div>
-
-                                      <div
-                                        className="
-                                          mt-1
-                                          text-[8px]
-                                          text-[#3D3528]/45
-                                        "
-                                      >
-                                        {confidence}% data
-                                        confidence
-                                      </div>
-                                    </div>
-
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        window.location.href =
-                                          `/explore?destination=${recommendation.destination.id}`
-                                      }}
-                                      className="
-                                        group
-                                        inline-flex
-                                        items-center
-                                        gap-3
-                                        rounded-full
-                                        bg-[#20251F]
-                                        px-5
-                                        py-3
-                                        text-[10px]
-                                        font-semibold
-                                        text-[#F8F1E5]
-                                        shadow-[0_8px_20px_rgba(0,0,0,0.16)]
-                                        transition-all
-                                        duration-300
-                                        hover:-translate-y-0.5
-                                        hover:bg-[#FF9933]
-                                        hover:text-[#17140F]
-                                      "
-                                    >
-                                      Explore destination
-
-                                      <ArrowUpRight
-                                        size={15}
-                                        className="
-                                          transition-transform
-                                          duration-300
-                                          group-hover:-translate-y-0.5
-                                          group-hover:translate-x-0.5
-                                        "
-                                      />
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            </motion.article>
-                          )
-                        },
-                      )}
-                  </AnimatePresence>
+                  <button
+                    type="button"
+                    onClick={goNext}
+                    disabled={isAnimating}
+                    aria-label="Next destination"
+                    className="
+                      flex
+                      h-12
+                      w-12
+                      items-center
+                      justify-center
+                      rounded-full
+                      border
+                      border-[#F8F1E5]/20
+                      bg-[#F8F1E5]/5
+                      text-[#F8F1E5]/70
+                      backdrop-blur-sm
+                      transition-all
+                      duration-300
+                      hover:border-[#FF9933]/50
+                      hover:bg-[#FF9933]/10
+                      hover:text-[#FF9933]
+                      disabled:cursor-not-allowed
+                      disabled:opacity-40
+                    "
+                  >
+                    <ArrowRight size={18} />
+                  </button>
                 </div>
 
-                {/* ======================================================== */}
-                {/*                       SWIPE HINT                         */}
-                {/* ======================================================== */}
+                {/* swipe hint */}
 
-                {!hasSwiped && (
+                {!hasInteracted && (
                   <motion.div
                     initial={
                       shouldReduceMotion
                         ? false
                         : {
                             opacity: 0,
-                            y: 10,
+                            y: 8,
                           }
                     }
                     animate={{
@@ -1491,218 +1681,101 @@ export default function SmartDiscovery() {
                       y: 0,
                     }}
                     transition={{
-                      delay: 1,
-                      duration: 0.5,
+                      delay: 0.8,
+                      duration: 0.45,
                     }}
                     className="
-                      absolute
-                      bottom-2
-                      left-1/2
+                      mt-6
                       flex
-                      -translate-x-1/2
                       items-center
                       gap-3
-                      text-[10px]
+                      text-[9px]
                       uppercase
                       tracking-[0.18em]
-                      text-[#F8F1E5]/40
+                      text-[#F8F1E5]/35
                     "
                   >
-                    <motion.div
-                      animate={
-                        shouldReduceMotion
-                          ? undefined
-                          : {
-                              x: [0, 8, 0],
-                            }
-                      }
-                      transition={{
-                        repeat: Infinity,
-                        duration: 1.8,
-                      }}
-                    >
-                      <ArrowLeft size={15} />
-                    </motion.div>
-
-                    Swipe to discover
-
-                    <motion.div
-                      animate={
-                        shouldReduceMotion
-                          ? undefined
-                          : {
-                              x: [0, 8, 0],
-                            }
-                      }
-                      transition={{
-                        repeat: Infinity,
-                        duration: 1.8,
-                      }}
-                    >
-                      <ArrowRight size={15} />
-                    </motion.div>
+                    <ArrowLeft size={13} />
+                    Swipe to explore
+                    <ArrowRight size={13} />
                   </motion.div>
                 )}
-              </div>
 
-              {/* ============================================================ */}
-              {/*                         CONTROLS                             */}
-              {/* ============================================================ */}
+                {/* index */}
 
-              <div className="mt-8 flex flex-col items-center">
-                <div className="flex items-center gap-5">
-                  <button
-                    type="button"
-                    onClick={goPrevious}
-                    aria-label="Previous destination"
-                    className="
-                      flex
-                      h-11
-                      w-11
-                      items-center
-                      justify-center
-                      rounded-full
-                      border
-                      border-[#F8F1E5]/10
-                      bg-[#F8F1E5]/5
-                      text-[#F8F1E5]/65
-                      transition-all
-                      duration-300
-                      hover:border-[#FF9933]/40
-                      hover:bg-[#FF9933]/10
-                      hover:text-[#FF9933]
-                    "
-                  >
-                    <ArrowLeft size={17} />
-                  </button>
+                <div
+                  className="
+                    mt-4
+                    flex
+                    items-center
+                    gap-2
+                    text-[9px]
+                    uppercase
+                    tracking-[0.16em]
+                    text-[#F8F1E5]/25
+                  "
+                >
+                  <span className="text-[#F8F1E5]/65">
+                    {String(activeIndex + 1).padStart(2, "0")}
+                  </span>
 
-                  <div className="flex flex-col items-center">
-                    <div className="flex items-center gap-3">
-                      <span
-                        className="
-                          font-['DM_Serif_Display']
-                          text-xl
-                          text-[#F8F1E5]
-                        "
-                      >
-                        {String(activeIndex + 1).padStart(
-                          2,
-                          '0',
-                        )}
-                      </span>
+                  <span>/</span>
 
-                      <span className="text-xs text-[#F8F1E5]/25">
-                        /
-                      </span>
-
-                      <span className="text-xs text-[#F8F1E5]/35">
-                        {String(
-                          recommendations.length,
-                        ).padStart(2, '0')}
-                      </span>
-                    </div>
-
-                    <div className="mt-2 h-px w-28 overflow-hidden bg-[#F8F1E5]/10">
-                      <motion.div
-                        className="h-full bg-[#FF9933]"
-                        animate={{
-                          width: `${
-                            ((activeIndex + 1) /
-                              recommendations.length) *
-                            100
-                          }%`,
-                        }}
-                        transition={{
-                          duration:
-                            shouldReduceMotion
-                              ? 0
-                              : 0.35,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={goNext}
-                    aria-label="Next destination"
-                    className="
-                      flex
-                      h-11
-                      w-11
-                      items-center
-                      justify-center
-                      rounded-full
-                      border
-                      border-[#F8F1E5]/10
-                      bg-[#F8F1E5]/5
-                      text-[#F8F1E5]/65
-                      transition-all
-                      duration-300
-                      hover:border-[#FF9933]/40
-                      hover:bg-[#FF9933]/10
-                      hover:text-[#FF9933]
-                    "
-                  >
-                    <ArrowRight size={17} />
-                  </button>
+                  <span>{String(recommendations.length).padStart(2, "0")}</span>
                 </div>
-
-                {/* keyboard hint */}
-
-                <p className="mt-5 text-[9px] uppercase tracking-[0.16em] text-[#F8F1E5]/20">
-                  Drag · Swipe · Arrow keys
-                </p>
               </div>
             </div>
           )}
 
-        {/* ================================================================ */}
-        {/*                           FOOTER NOTE                            */}
-        {/* ================================================================ */}
+        {/* ---------------------------------------------------------------- */}
+        {/*                            FOOTER                                */}
+        {/* ---------------------------------------------------------------- */}
 
-        {!loading &&
-          !error &&
-          recommendations.length > 0 && (
+        {!loading && !error && recommendations.length > 0 && (
+          <div
+            className="
+                mx-auto
+                mt-10
+                flex
+                max-w-6xl
+                flex-col
+                items-center
+                justify-between
+                gap-3
+                border-t
+                border-[#F8F1E5]/8
+                pt-6
+                text-[9px]
+                uppercase
+                tracking-[0.12em]
+                text-[#F8F1E5]/25
+                sm:flex-row
+              "
+          >
             <div
               className="
-                mx-auto
-                mt-16
-                flex
-                max-w-5xl
-                flex-col
-                gap-4
-                border-t
-                border-[#F8F1E5]/10
-                pt-7
-                text-xs
-                text-[#F8F1E5]/30
-                md:flex-row
-                md:items-center
-                md:justify-between
-              "
+                  flex
+                  items-center
+                  gap-2
+                "
             >
-              <div className="flex items-center gap-2">
-                <Sparkles
-                  size={13}
-                  className="text-[#FF9933]"
-                />
-
-                Recommendations generated from your current
-                traveller profile.
-              </div>
-
-              <div className="flex items-center gap-2">
-                <CheckCircle2
-                  size={13}
-                  className="text-[#7BC47F]"
-                />
-
-                Powered by Khoj Intelligence
-              </div>
+              <Sparkles size={12} className="text-[#FF9933]" />
+              Recommendations generated from your traveller profile.
             </div>
-          )}
+
+            <div
+              className="
+                  flex
+                  items-center
+                  gap-2
+                "
+            >
+              <CheckCircle2 size={12} className="text-[#7BC47F]" />
+              Powered by Khoj Intelligence
+            </div>
+          </div>
+        )}
       </div>
     </section>
-  )
+  );
 }

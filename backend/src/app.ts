@@ -3,13 +3,13 @@ import cors from 'cors'
 import helmet from 'helmet'
 
 import destinationRoutes from './destinations/destination.routes.js'
-import destinationDetailRoutes from './destinations/destination-detail.routes.js'
 import { testDatabaseConnection } from './services/databaseTest.js'
 import { errorHandler } from './middleware/errorHandler.js'
 import { sendSuccess, sendError } from './utils/apiResponse.js'
 import authRoutes from './auth/auth.routes.js'
 import intelligenceRoutes from './recommendations/intelligence.routes.js'
 import recommendationRoutes from './recommendations/recommendation.routes.js'
+import preferenceRoutes from './preferences/preference.routes.js'
 
 const app = express()
 
@@ -62,12 +62,12 @@ app.get('/api/health/database', async (_req, res) => {
 
 // Destination routes
 app.use('/api/destinations', destinationRoutes)
-app.use('/api/destinations', destinationDetailRoutes)
 
 // Authentication Routes
 app.use('/api/auth', authRoutes)
 app.use('/api/intelligence', intelligenceRoutes)
 app.use('/api/recommendations', recommendationRoutes)
+app.use('/api/preferences', preferenceRoutes)
 
 // 404 handler
 app.use((_req, res) => {

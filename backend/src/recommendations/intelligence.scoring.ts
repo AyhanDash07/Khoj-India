@@ -7,21 +7,22 @@ import type {
 } from './intelligence.types.js'
 
 const PERSONAL_WEIGHTS = {
-  interests: 30,
+  interests: 25,
   travel_style: 20,
-  budget: 15,
+  budget: 10,
   duration: 10,
   crowd: 10,
-  region: 10,
+  region: 20,
   food: 5,
 }
 
 const OVERALL_WEIGHTS = {
-  personal_fit: 50,
+  personal_fit: 45,
   impact: 20,
   safety: 10,
   pressure: 10,
-  accessibility: 10,
+  accessibility: 5,
+  seasonality: 10,
 }
 
 function normalizeScore(value: number): number {
@@ -72,14 +73,24 @@ function calculateIntelligenceConfidence(
     {
       name: 'Accessibility',
       available:
-        input.intelligence.accessibility.wheelchair_accessible !== null ||
-        input.intelligence.accessibility.accessible_transport !== null ||
-        input.intelligence.accessibility.accessible_accommodation !== null ||
-        input.intelligence.accessibility.accessible_restrooms !== null,
+        input.intelligence.accessibility
+          .wheelchair_accessible !== null ||
+        input.intelligence.accessibility
+          .accessible_transport !== null ||
+        input.intelligence.accessibility
+          .accessible_accommodation !== null ||
+        input.intelligence.accessibility
+          .accessible_restrooms !== null,
     },
     {
       name: 'Visitor pressure',
       available: input.intelligence.pressure.score !== null,
+    },
+    {
+      name: 'Seasonality',
+      available:
+        input.context.travel_month !== null &&
+        input.intelligence.seasonality.suitability_score !== null,
     },
   ]
 
@@ -116,6 +127,18 @@ function calculateIntelligenceConfidence(
   }
 }
 
+function applyConfidenceAdjustment(
+  rawOverall: number,
+  confidenceScore: number,
+): number {
+  const confidenceFactor =
+    0.6 + (confidenceScore / 100) * 0.4
+
+  return normalizeScore(
+    rawOverall * confidenceFactor,
+  )
+}
+
 function calculateArrayMatch(
   preferences: string[],
   destinationValues: string[],
@@ -128,20 +151,22 @@ function calculateArrayMatch(
     return 50
   }
 
-  const normalizedPreferences = preferences.map((value) =>
-    value.toLowerCase().trim(),
+  const normalizedPreferences = preferences.map(
+    (value) => value.toLowerCase().trim(),
   )
 
-  const normalizedDestinationValues = destinationValues.map((value) =>
-    value.toLowerCase().trim(),
-  )
+  const normalizedDestinationValues =
+    destinationValues.map(
+      (value) => value.toLowerCase().trim(),
+    )
 
-  const matches = normalizedPreferences.filter((preference) =>
-    normalizedDestinationValues.some(
-      (destinationValue) =>
-        destinationValue.includes(preference) ||
-        preference.includes(destinationValue),
-    ),
+  const matches = normalizedPreferences.filter(
+    (preference) =>
+      normalizedDestinationValues.some(
+        (destinationValue) =>
+          destinationValue.includes(preference) ||
+          preference.includes(destinationValue),
+      ),
   )
 
   return normalizeScore(
@@ -172,56 +197,68 @@ function calculateSemanticArrayMatch(
   const aliases: Record<string, string[]> = {
     'slow & relaxed': ['slow travel'],
     'slow and relaxed': ['slow travel'],
-
-    'cultural immersion': ['culture', 'heritage', 'slow travel'],
-    'cultural experience': ['culture', 'heritage', 'slow travel'],
+    'cultural immersion': [
+      'culture',
+      'heritage',
+      'slow travel',
+    ],
+    'cultural experience': [
+      'culture',
+      'heritage',
+      'slow travel',
+    ],
     'culture & heritage': ['culture', 'heritage'],
     'culture and heritage': ['culture', 'heritage'],
-
     'off the beaten path': ['hidden gem'],
     offbeat: ['hidden gem'],
-
     nature: ['nature'],
     culture: ['culture', 'heritage'],
     heritage: ['heritage', 'culture'],
     adventure: ['adventure'],
     photography: ['photography'],
-
     food: ['food'],
     'local food': ['food'],
     'fine dining': ['food'],
-
     family: ['family friendly'],
     solo: ['solo friendly'],
   }
 
-  const normalizedDestinationValues = destinationValues.map(
-    (value) => value.toLowerCase().trim(),
-  )
-
-  const matches = preferences.filter((preference) => {
-    const normalizedPreference = preference.toLowerCase().trim()
-
-    if (
-      normalizedDestinationValues.some(
-        (destinationValue) =>
-          destinationValue.includes(normalizedPreference) ||
-          normalizedPreference.includes(destinationValue),
-      )
-    ) {
-      return true
-    }
-
-    const semanticMatches = aliases[normalizedPreference] ?? []
-
-    return semanticMatches.some((alias) =>
-      normalizedDestinationValues.some(
-        (destinationValue) =>
-          destinationValue.includes(alias) ||
-          alias.includes(destinationValue),
-      ),
+  const normalizedDestinationValues =
+    destinationValues.map(
+      (value) => value.toLowerCase().trim(),
     )
-  })
+
+  const matches = preferences.filter(
+    (preference) => {
+      const normalizedPreference =
+        preference.toLowerCase().trim()
+
+      if (
+        normalizedDestinationValues.some(
+          (destinationValue) =>
+            destinationValue.includes(
+              normalizedPreference,
+            ) ||
+            normalizedPreference.includes(
+              destinationValue,
+            ),
+        )
+      ) {
+        return true
+      }
+
+      const semanticMatches =
+        aliases[normalizedPreference] ?? []
+
+      return semanticMatches.some((alias) =>
+        normalizedDestinationValues.some(
+          (destinationValue) =>
+            destinationValue.includes(alias) ||
+            alias.includes(destinationValue),
+        ),
+      )
+    },
+  )
 
   const score = normalizeScore(
     (matches.length / preferences.length) * 100,
@@ -231,7 +268,8 @@ function calculateSemanticArrayMatch(
     return {
       score,
       status: 'matched',
-      reason: 'Strong match with destination attributes.',
+      reason:
+        'Strong match with destination attributes.',
     }
   }
 
@@ -239,14 +277,16 @@ function calculateSemanticArrayMatch(
     return {
       score,
       status: 'partial',
-      reason: 'Some destination attributes match the traveller preference.',
+      reason:
+        'Some destination attributes match the traveller preference.',
     }
   }
 
   return {
     score: 0,
     status: 'mismatched',
-    reason: 'Destination attributes do not match the traveller preference.',
+    reason:
+      'Destination attributes do not match the traveller preference.',
   }
 }
 
@@ -266,31 +306,34 @@ function calculateRegionalMatch(
     return {
       score: null,
       status: 'unknown',
-      reason: 'Destination state data is unavailable.',
+      reason:
+        'Destination state data is unavailable.',
     }
   }
 
-  const normalizedDestinationState = destinationState
-    .toLowerCase()
-    .trim()
+  const normalizedDestinationState =
+    destinationState.toLowerCase().trim()
 
   const matched = preferredRegions.some(
     (region) =>
-      region.toLowerCase().trim() === normalizedDestinationState,
+      region.toLowerCase().trim() ===
+      normalizedDestinationState,
   )
 
   if (matched) {
     return {
       score: 100,
       status: 'matched',
-      reason: 'Destination is in one of your preferred regions.',
+      reason:
+        'Destination is in one of your preferred regions.',
     }
   }
 
   return {
     score: 0,
     status: 'mismatched',
-    reason: `Destination is in ${destinationState}, outside your preferred regions.`,
+    reason:
+      `Destination is in ${destinationState}, outside your preferred regions.`,
   }
 }
 
@@ -298,7 +341,10 @@ function calculateBudgetScore(
   travellerBudget: number | null,
   destinationBudget: number | null,
 ): number | null {
-  if (travellerBudget === null || destinationBudget === null) {
+  if (
+    travellerBudget === null ||
+    destinationBudget === null
+  ) {
     return null
   }
 
@@ -311,7 +357,8 @@ function calculateBudgetScore(
   }
 
   const difference =
-    (destinationBudget - travellerBudget) / travellerBudget
+    (destinationBudget - travellerBudget) /
+    travellerBudget
 
   if (difference <= 0.1) {
     return 85
@@ -332,15 +379,23 @@ function calculateDurationScore(
   preferredDays: number | null,
   recommendedDays: number | null,
 ): number | null {
-  if (preferredDays === null || recommendedDays === null) {
+  if (
+    preferredDays === null ||
+    recommendedDays === null
+  ) {
     return null
   }
 
-  if (preferredDays <= 0 || recommendedDays <= 0) {
+  if (
+    preferredDays <= 0 ||
+    recommendedDays <= 0
+  ) {
     return null
   }
 
-  const difference = Math.abs(preferredDays - recommendedDays)
+  const difference = Math.abs(
+    preferredDays - recommendedDays,
+  )
 
   if (difference === 0) {
     return 100
@@ -370,8 +425,11 @@ function calculateCrowdScore(
     return null
   }
 
-  const normalizedPreference = preference.toLowerCase()
-  const normalizedPressure = pressureLevel?.toLowerCase() ?? ''
+  const normalizedPreference =
+    preference.toLowerCase()
+
+  const normalizedPressure =
+    pressureLevel?.toLowerCase() ?? ''
 
   if (
     normalizedPreference.includes('low') ||
@@ -444,34 +502,40 @@ function calculateSafetyScore(
     return null
   }
 
-  const level = safetyLevel.toLowerCase()
+  const level = safetyLevel
+    .trim()
+    .toLowerCase()
+    .replace(/[\_-]+/g, ' ')
 
   if (
-    level.includes('excellent') ||
-    level.includes('very safe')
+    level === 'excellent' ||
+    level === 'very safe'
   ) {
     return 100
   }
 
-  if (level.includes('safe') || level === 'high') {
+  if (
+    level === 'safe' ||
+    level === 'low risk'
+  ) {
     return 90
   }
 
-  if (level.includes('moderate')) {
+  if (
+    level === 'moderate' ||
+    level === 'moderate risk'
+  ) {
     return 70
   }
 
-  if (
-    level.includes('caution') ||
-    level.includes('low')
-  ) {
+  if (level === 'caution') {
     return 45
   }
 
   if (
-    level.includes('unsafe') ||
-    level.includes('high risk') ||
-    level.includes('danger')
+    level === 'high risk' ||
+    level === 'unsafe' ||
+    level === 'danger'
   ) {
     return 20
   }
@@ -481,10 +545,11 @@ function calculateSafetyScore(
 
 function calculateAccessibilityScore(
   needs: string[],
-  accessibility: IntelligenceInput['intelligence']['accessibility'],
+  accessibility:
+    IntelligenceInput['intelligence']['accessibility'],
 ): number | null {
   if (needs.length === 0) {
-    return 100
+    return null
   }
 
   const availableFeatures = [
@@ -494,37 +559,56 @@ function calculateAccessibilityScore(
     accessibility.accessible_restrooms,
   ]
 
+  if (
+    availableFeatures.every(
+      (feature) => feature === null,
+    )
+  ) {
+    return null
+  }
+
   const requestedCount = needs.length
 
-  const supportedCount = needs.filter((need) => {
-    const normalized = need.toLowerCase()
+  const supportedCount = needs.filter(
+    (need) => {
+      const normalized = need.toLowerCase()
 
-    if (normalized.includes('wheelchair')) {
-      return accessibility.wheelchair_accessible === true
-    }
+      if (normalized.includes('wheelchair')) {
+        return (
+          accessibility.wheelchair_accessible === true
+        )
+      }
 
-    if (normalized.includes('transport')) {
-      return accessibility.accessible_transport === true
-    }
+      if (normalized.includes('transport')) {
+        return (
+          accessibility.accessible_transport === true
+        )
+      }
 
-    if (
-      normalized.includes('accommodation') ||
-      normalized.includes('hotel')
-    ) {
-      return accessibility.accessible_accommodation === true
-    }
+      if (
+        normalized.includes('accommodation') ||
+        normalized.includes('hotel')
+      ) {
+        return (
+          accessibility.accessible_accommodation ===
+          true
+        )
+      }
 
-    if (
-      normalized.includes('restroom') ||
-      normalized.includes('toilet')
-    ) {
-      return accessibility.accessible_restrooms === true
-    }
+      if (
+        normalized.includes('restroom') ||
+        normalized.includes('toilet')
+      ) {
+        return (
+          accessibility.accessible_restrooms === true
+        )
+      }
 
-    return availableFeatures.some(
-      (feature) => feature === true,
-    )
-  }).length
+      return availableFeatures.some(
+        (feature) => feature === true,
+      )
+    },
+  ).length
 
   return normalizeScore(
     (supportedCount / requestedCount) * 100,
@@ -549,6 +633,27 @@ function calculatePressureScore(
   }
 
   return normalizeScore(100 - pressureScore)
+}
+
+function calculateSeasonalityScore(
+  travelMonth: number | null,
+  suitabilityScore: number | null,
+): number | null {
+  if (
+    travelMonth === null ||
+    suitabilityScore === null
+  ) {
+    return null
+  }
+
+  if (
+    travelMonth < 1 ||
+    travelMonth > 12
+  ) {
+    return null
+  }
+
+  return normalizeScore(suitabilityScore)
 }
 
 function calculatePersonalFit(
@@ -592,20 +697,24 @@ function calculatePersonalFit(
     } => factor.score !== null,
   )
 
-  const totalPersonalWeight = personalFactors.reduce(
-    (total, factor) => total + factor.weight,
-    0,
-  )
+  const totalPersonalWeight =
+    personalFactors.reduce(
+      (total, factor) =>
+        total + factor.weight,
+      0,
+    )
 
   if (totalPersonalWeight === 0) {
     return 0
   }
 
-  const weightedScore = personalFactors.reduce(
-    (total, factor) =>
-      total + factor.score * factor.weight,
-    0,
-  )
+  const weightedScore =
+    personalFactors.reduce(
+      (total, factor) =>
+        total +
+        factor.score * factor.weight,
+      0,
+    )
 
   return normalizeScore(
     weightedScore / totalPersonalWeight,
@@ -682,21 +791,52 @@ function buildReasons(
   }
 
   if (
-    input.traveller.accessibility_needs.length > 0 &&
-    input.intelligence.accessibility.wheelchair_accessible === true
+    input.traveller.accessibility_needs.length >
+      0 &&
+    input.intelligence.accessibility
+      .wheelchair_accessible === true
   ) {
     reasons.push(
       'The destination has accessibility signals that align with your needs.',
     )
   }
 
+  if (input.intelligence.safety.level) {
+    const safetyScore =
+      calculateSafetyScore(
+        input.intelligence.safety.level,
+      )
+
+    if (
+      safetyScore !== null &&
+      safetyScore >= 80
+    ) {
+      reasons.push(
+        'Available safety signals indicate a comparatively comfortable destination profile.',
+      )
+    }
+  }
+
+  const seasonalityScore =
+    calculateSeasonalityScore(
+      input.context.travel_month,
+      input.intelligence.seasonality
+        .suitability_score,
+    )
+
   if (
-    input.intelligence.safety.level &&
-    calculateSafetyScore(input.intelligence.safety.level) !== null &&
-    calculateSafetyScore(input.intelligence.safety.level)! >= 80
+    seasonalityScore !== null &&
+    seasonalityScore >= 90
   ) {
     reasons.push(
-      'Available safety signals indicate a comparatively comfortable destination profile.',
+      'Your selected travel month is highly suitable for this destination.',
+    )
+  } else if (
+    seasonalityScore !== null &&
+    seasonalityScore >= 75
+  ) {
+    reasons.push(
+      'Your selected travel month is a good time to visit this destination.',
     )
   }
 
@@ -713,7 +853,10 @@ function buildCautions(
   const pressureScore =
     input.intelligence.pressure.score
 
-  if (pressureScore !== null && pressureScore >= 70) {
+  if (
+    pressureScore !== null &&
+    pressureScore >= 70
+  ) {
     cautions.push(
       'This destination currently has relatively high visitor pressure.',
     )
@@ -724,7 +867,10 @@ function buildCautions(
       input.intelligence.safety.level,
     )
 
-    if (safety !== null && safety < 60) {
+    if (
+      safety !== null &&
+      safety < 60
+    ) {
       cautions.push(
         'Review the available safety guidance before planning your visit.',
       )
@@ -750,8 +896,10 @@ function buildCautions(
   }
 
   if (
-    input.intelligence.accessibility.accessibility_notes === null &&
-    input.traveller.accessibility_needs.length > 0
+    input.intelligence.accessibility
+      .accessibility_notes === null &&
+    input.traveller.accessibility_needs
+      .length > 0
   ) {
     cautions.push(
       'Accessibility information is currently limited, so verify specific requirements before travelling.',
@@ -790,53 +938,87 @@ function buildCautions(
     )
   }
 
+  const seasonalityScore =
+    calculateSeasonalityScore(
+      input.context.travel_month,
+      input.intelligence.seasonality
+        .suitability_score,
+    )
+
+  if (
+    seasonalityScore !== null &&
+    seasonalityScore < 50
+  ) {
+    cautions.push(
+      'Your selected travel month has challenging conditions for this destination.',
+    )
+  } else if (
+    seasonalityScore !== null &&
+    seasonalityScore < 75
+  ) {
+    cautions.push(
+      'Conditions may be mixed during your selected travel month.',
+    )
+  }
+
   return cautions.slice(0, 5)
 }
 
 export function calculateIntelligenceScore(
   input: IntelligenceInput,
 ): IntelligenceResult {
-  const { traveller, destination, intelligence } = input
+  const {
+    traveller,
+    destination,
+    intelligence,
+  } = input
 
   // ---------------------------------------------------------
   // 1. PERSONAL PREFERENCE MATCHING
   // ---------------------------------------------------------
 
-  const interests = calculateSemanticArrayMatch(
-    traveller.interests,
-    destination.tags.interests,
-  )
+  const interests =
+    calculateSemanticArrayMatch(
+      traveller.interests,
+      destination.tags.interests,
+    )
 
-  const travelStyle = calculateSemanticArrayMatch(
-    traveller.travel_styles,
-    destination.tags.travel_styles,
-  )
+  const travelStyle =
+    calculateSemanticArrayMatch(
+      traveller.travel_styles,
+      destination.tags.travel_styles,
+    )
 
-  const budget = calculateBudgetScore(
-    traveller.budget_per_day,
-    null,
-  )
+  const budget =
+    calculateBudgetScore(
+      traveller.budget_per_day,
+      null,
+    )
 
-  const duration = calculateDurationScore(
-    traveller.preferred_trip_duration_days,
-    null,
-  )
+  const duration =
+    calculateDurationScore(
+      traveller.preferred_trip_duration_days,
+      null,
+    )
 
-  const crowd = calculateCrowdScore(
-    traveller.crowd_preference,
-    intelligence.pressure.level,
-    intelligence.pressure.score,
-  )
+  const crowd =
+    calculateCrowdScore(
+      traveller.crowd_preference,
+      intelligence.pressure.level,
+      intelligence.pressure.score,
+    )
 
-  const region = calculateRegionalMatch(
-    traveller.preferred_regions,
-    destination.state_name,
-  )
+  const region =
+    calculateRegionalMatch(
+      traveller.preferred_regions,
+      destination.state_name,
+    )
 
-  const food = calculateSemanticArrayMatch(
-    traveller.food_preferences,
-    destination.tags.food,
-  )
+  const food =
+    calculateSemanticArrayMatch(
+      traveller.food_preferences,
+      destination.tags.food,
+    )
 
   // ---------------------------------------------------------
   // 2. DEBUG — RAW SCORING INPUT
@@ -847,8 +1029,14 @@ export function calculateIntelligenceScore(
     JSON.stringify(
       {
         traveller,
-        destinationTags: destination.tags,
-        destinationState: destination.state_name,
+        destinationTags:
+          destination.tags,
+        destinationState:
+          destination.state_name,
+        travelMonth:
+          input.context.travel_month,
+        seasonality:
+          intelligence.seasonality,
         calculated: {
           interests,
           travelStyle,
@@ -878,37 +1066,50 @@ export function calculateIntelligenceScore(
     food: food.score,
   }
 
-  const personalFit = calculatePersonalFit(breakdown)
+  const personalFit =
+    calculatePersonalFit(breakdown)
 
   // ---------------------------------------------------------
   // 4. DESTINATION INTELLIGENCE DIMENSIONS
   // ---------------------------------------------------------
 
-  const impact = calculateImpactScore(
-    intelligence.impact.score,
-  )
+  const impact =
+    calculateImpactScore(
+      intelligence.impact.score,
+    )
 
-  const safety = calculateSafetyScore(
-    intelligence.safety.level,
-  )
+  const safety =
+    calculateSafetyScore(
+      intelligence.safety.level,
+    )
 
-  const pressure = calculatePressureScore(
-    intelligence.pressure.score,
-  )
+  const pressure =
+    calculatePressureScore(
+      intelligence.pressure.score,
+    )
 
-  const accessibility = calculateAccessibilityScore(
-    traveller.accessibility_needs,
-    intelligence.accessibility,
-  )
+  const accessibility =
+    calculateAccessibilityScore(
+      traveller.accessibility_needs,
+      intelligence.accessibility,
+    )
+
+  const seasonality =
+    calculateSeasonalityScore(
+      input.context.travel_month,
+      intelligence.seasonality
+        .suitability_score,
+    )
 
   // ---------------------------------------------------------
   // 5. INTELLIGENCE CONFIDENCE
   // ---------------------------------------------------------
 
-  const confidence = calculateIntelligenceConfidence(
-    input,
-    breakdown,
-  )
+  const confidence =
+    calculateIntelligenceConfidence(
+      input,
+      breakdown,
+    )
 
   // ---------------------------------------------------------
   // 6. OVERALL SCORE
@@ -920,23 +1121,33 @@ export function calculateIntelligenceScore(
   const overallFactors = [
     {
       score: personalFit,
-      weight: OVERALL_WEIGHTS.personal_fit,
+      weight:
+        OVERALL_WEIGHTS.personal_fit,
     },
     {
       score: impact,
-      weight: OVERALL_WEIGHTS.impact,
+      weight:
+        OVERALL_WEIGHTS.impact,
     },
     {
       score: safety,
-      weight: OVERALL_WEIGHTS.safety,
+      weight:
+        OVERALL_WEIGHTS.safety,
     },
     {
       score: pressure,
-      weight: OVERALL_WEIGHTS.pressure,
+      weight:
+        OVERALL_WEIGHTS.pressure,
     },
     {
       score: accessibility,
-      weight: OVERALL_WEIGHTS.accessibility,
+      weight:
+        OVERALL_WEIGHTS.accessibility,
+    },
+    {
+      score: seasonality,
+      weight:
+        OVERALL_WEIGHTS.seasonality,
     },
   ].filter(
     (
@@ -947,21 +1158,31 @@ export function calculateIntelligenceScore(
     } => factor.score !== null,
   )
 
-  const totalOverallWeight = overallFactors.reduce(
-    (total, factor) => total + factor.weight,
-    0,
-  )
+  const totalOverallWeight =
+    overallFactors.reduce(
+      (total, factor) =>
+        total + factor.weight,
+      0,
+    )
 
-  const overall =
+  const rawOverall =
     totalOverallWeight === 0
       ? 0
       : normalizeScore(
           overallFactors.reduce(
             (total, factor) =>
-              total + factor.score * factor.weight,
+              total +
+              factor.score *
+                factor.weight,
             0,
           ) / totalOverallWeight,
         )
+
+  const overall =
+    applyConfidenceAdjustment(
+      rawOverall,
+      confidence.score,
+    )
 
   // ---------------------------------------------------------
   // 7. FINAL DEBUG
@@ -971,13 +1192,18 @@ export function calculateIntelligenceScore(
     '[KHOJ DEBUG] Final intelligence score:',
     JSON.stringify(
       {
-        destination: destination.name,
+        destination:
+          destination.name,
+        travelMonth:
+          input.context.travel_month,
         personalFit,
         breakdown,
         impact,
         safety,
         pressure,
         accessibility,
+        seasonality,
+        rawOverall,
         overall,
         confidence,
       },
@@ -991,17 +1217,30 @@ export function calculateIntelligenceScore(
   // ---------------------------------------------------------
 
   return {
-    destination_id: destination.id,
-    destination_name: destination.name,
+    destination_id:
+      destination.id,
+
+    destination_name:
+      destination.name,
 
     score: {
-      personal_fit: personalFit,
+      personal_fit:
+        personalFit,
+
       impact,
+
       safety,
+
       pressure,
+
       accessibility,
+
+      seasonality,
+
       overall,
+
       breakdown,
+
       confidence,
     },
 

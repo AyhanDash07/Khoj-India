@@ -53,11 +53,14 @@ export async function getDestinationIntelligenceScore(
     ])
 
     const input: IntelligenceInput = {
-      traveller,
-      destination,
-      intelligence,
-      experiences,
-    }
+  traveller,
+  destination,
+  intelligence,
+  experiences,
+  context: {
+    travel_month: null,
+  },
+}
 
     const result = calculateIntelligenceScore(input)
 

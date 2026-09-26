@@ -1,82 +1,94 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-} from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import {
-  ArrowLeft,
-  Check,
-  RotateCcw,
-  Save,
-  Sparkles,
-} from 'lucide-react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, Check, RotateCcw, Save, Sparkles } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 
-import { useAuth } from '../hooks/useAuth'
-import {
-  getUserPreferences,
-  updateUserPreferences,
-} from '../services/profileService.ts'
+import { useAuth } from "../hooks/useAuth";
+import api from "../services/api";
+import { supabase } from "../lib/supabase";
 
 const INTERESTS = [
-  'Nature',
-  'Culture',
-  'Food',
-  'Heritage',
-  'Adventure',
-  'Wellness',
-  'Arts & Crafts',
-]
+  "Nature",
+  "Culture",
+  "Food",
+  "Heritage",
+  "Adventure",
+  "Wellness",
+  "Arts & Crafts",
+];
 
 const TRAVEL_STYLES = [
-  'Slow & relaxed',
-  'Off the beaten path',
-  'Cultural immersion',
-  'Adventure',
-  'Weekend escape',
-  'Family travel',
-  'Solo exploration',
-]
+  "Slow & relaxed",
+  "Off the beaten path",
+  "Cultural immersion",
+  "Adventure",
+  "Weekend escape",
+  "Family travel",
+  "Solo exploration",
+];
 
-const QUICK_DURATIONS = [
-  1,
-  2,
-  3,
-  4,
-  5,
-  7,
-  10,
-  14,
-]
+const QUICK_DURATIONS = [1, 2, 3, 4, 5, 7, 10, 14];
 
 const CROWD_PREFERENCES = [
-  'I avoid them',
-  'A little is okay',
+  "I avoid them",
+  "A little is okay",
   "I don't mind",
-  'I enjoy lively places',
-]
+  "I enjoy lively places",
+];
 
 const REGIONS = [
-  'Maharashtra',
-  'Rajasthan',
-  'Kerala',
-  'Himachal Pradesh',
-  'Meghalaya',
-]
+  "Maharashtra",
+  "Rajasthan",
+  "Kerala",
+  "Himachal Pradesh",
+  "Meghalaya",
+];
 
 const FOOD_PREFERENCES = [
-  'Local & regional',
-  'Vegetarian',
-  'Street food',
-  'Fine dining',
-  'Traditional food',
-  'No preference',
-]
+  "Local & regional",
+  "Vegetarian",
+  "Street food",
+  "Fine dining",
+  "Traditional food",
+  "No preference",
+];
 
-const MIN_BUDGET = 500
-const MAX_BUDGET = 50000
-const BUDGET_STEP = 500
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const MIN_BUDGET = 500;
+const MAX_BUDGET = 50000;
+const BUDGET_STEP = 500;
+
+interface PreferencesResponse {
+  success: boolean;
+  message?: string;
+  data: {
+    interests: string[];
+    travel_styles: string[];
+    preferred_trip_duration_days: number | null;
+    budget_per_day: number | null;
+    budget_currency: string | null;
+    crowd_preference: string | null;
+    preferred_regions: string[];
+    accessibility_needs: string[];
+    food_preferences: string[];
+    language_preferences: string[];
+    travel_month: number | null;
+  };
+}
 
 function SelectionTile({
   label,
@@ -84,10 +96,10 @@ function SelectionTile({
   onClick,
   multiple = false,
 }: {
-  label: string
-  selected: boolean
-  onClick: () => void
-  multiple?: boolean
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+  multiple?: boolean;
 }) {
   return (
     <motion.button
@@ -100,18 +112,16 @@ function SelectionTile({
         ease: [0.22, 1, 0.36, 1],
       }}
       className={[
-        'group relative border px-5 py-4 text-left transition-all duration-300',
+        "group relative border px-5 py-4 text-left transition-all duration-300",
         selected
-          ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/8'
-          : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-text-secondary)]',
-      ].join(' ')}
+          ? "border-[var(--color-accent)] bg-[var(--color-accent)]/8"
+          : "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-text-secondary)]",
+      ].join(" ")}
     >
       <div className="flex items-center justify-between gap-4">
         <span
           className={
-            selected
-              ? 'font-medium'
-              : 'text-[var(--color-text-primary)]'
+            selected ? "font-medium" : "text-[var(--color-text-primary)]"
           }
         >
           {label}
@@ -123,12 +133,12 @@ function SelectionTile({
           }}
           transition={{ duration: 0.2 }}
           className={[
-            'flex h-5 w-5 shrink-0 items-center justify-center border transition-all duration-300',
+            "flex h-5 w-5 shrink-0 items-center justify-center border transition-all duration-300",
             selected
-              ? 'border-[var(--color-accent)] bg-[var(--color-accent)] text-white'
-              : 'border-[var(--color-border)] group-hover:border-[var(--color-text-secondary)]',
-            multiple ? 'rounded-md' : 'rounded-full',
-          ].join(' ')}
+              ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-white"
+              : "border-[var(--color-border)] group-hover:border-[var(--color-text-secondary)]",
+            multiple ? "rounded-md" : "rounded-full",
+          ].join(" ")}
         >
           <AnimatePresence initial={false}>
             {selected && (
@@ -146,17 +156,14 @@ function SelectionTile({
                   scale: 0.5,
                 }}
               >
-                <Check
-                  size={12}
-                  strokeWidth={2.5}
-                />
+                <Check size={12} strokeWidth={2.5} />
               </motion.span>
             )}
           </AnimatePresence>
         </motion.span>
       </div>
     </motion.button>
-  )
+  );
 }
 
 function SectionHeading({
@@ -164,15 +171,13 @@ function SectionHeading({
   title,
   description,
 }: {
-  eyebrow: string
-  title: string
-  description: string
+  eyebrow: string;
+  title: string;
+  description: string;
 }) {
   return (
     <div className="mb-7">
-      <p className="eyebrow-khoj">
-        {eyebrow}
-      </p>
+      <p className="eyebrow-khoj">{eyebrow}</p>
 
       <h2 className="mt-3 text-2xl font-medium tracking-tight md:text-3xl">
         {title}
@@ -182,227 +187,173 @@ function SectionHeading({
         {description}
       </p>
     </div>
-  )
+  );
 }
 
 function PreferencesPage() {
-  const navigate = useNavigate()
-  const resetConfirmationRef =
-    useRef<HTMLDivElement | null>(null)
+  const navigate = useNavigate();
+  const resetConfirmationRef = useRef<HTMLDivElement | null>(null);
 
-  const {
-    user,
-    loading: authLoading,
-  } = useAuth()
+  const { user, loading: authLoading } = useAuth();
 
-  const [loading, setLoading] =
-    useState(false)
+  const [loading, setLoading] = useState(false);
 
-  const [saving, setSaving] =
-    useState(false)
+  const [saving, setSaving] = useState(false);
 
-  const [resetting, setResetting] =
-    useState(false)
+  const [resetting, setResetting] = useState(false);
 
-  const [
-    showResetConfirmation,
-    setShowResetConfirmation,
-  ] = useState(false)
+  const [showResetConfirmation, setShowResetConfirmation] = useState(false);
 
-  const [
-    hasUnsavedChanges,
-    setHasUnsavedChanges,
-  ] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  const [interests, setInterests] =
-    useState<string[]>([])
+  const [interests, setInterests] = useState<string[]>([]);
 
-  const [travelStyles, setTravelStyles] =
-    useState<string[]>([])
+  const [travelStyles, setTravelStyles] = useState<string[]>([]);
 
-  const [
-    tripDurationDays,
-    setTripDurationDays,
-  ] = useState<number | null>(null)
+  const [tripDurationDays, setTripDurationDays] = useState<number | null>(null);
 
-  const [
-    customDuration,
-    setCustomDuration,
-  ] = useState('')
+  const [customDuration, setCustomDuration] = useState("");
 
-  const [
-    crowdPreference,
-    setCrowdPreference,
-  ] = useState('')
+  const [crowdPreference, setCrowdPreference] = useState("");
 
-  const [
-    budgetPerDay,
-    setBudgetPerDay,
-  ] = useState<number | null>(null)
+  const [budgetPerDay, setBudgetPerDay] = useState<number | null>(null);
 
-  const [
-    budgetInput,
-    setBudgetInput,
-  ] = useState('')
+  const [budgetInput, setBudgetInput] = useState("");
 
-  const [regions, setRegions] =
-    useState<string[]>([])
+  const [regions, setRegions] = useState<string[]>([]);
 
-  const [
-    foodPreferences,
-    setFoodPreferences,
-  ] = useState<string[]>([])
+  const [foodPreferences, setFoodPreferences] = useState<string[]>([]);
 
-  const [message, setMessage] =
-    useState('')
+  const [travelMonth, setTravelMonth] = useState<number | null>(null);
 
-  const [error, setError] =
-    useState('')
+  const [message, setMessage] = useState("");
+
+  const [error, setError] = useState("");
 
   /*
    * Load existing preferences.
    */
   useEffect(() => {
     if (!user) {
-      return
+      return;
     }
-
-    const userId = user.id
 
     async function loadPreferences() {
       try {
-        setLoading(true)
-        setError('')
-        setMessage('')
+        setLoading(true);
+        setError("");
+        setMessage("");
 
-        const data =
-          await getUserPreferences(userId)
+        const {
+  data: { session },
+} = await supabase.auth.getSession();
 
-        setInterests(
-          data?.interests ?? [],
-        )
+if (!session) {
+  throw new Error("Your session has expired. Please sign in again.");
+}
 
-        setTravelStyles(
-          data?.travel_styles ?? [],
-        )
+const response = await api.get<PreferencesResponse>(
+  "/preferences",
+  {
+    token: session.access_token,
+  },
+);
 
-        const savedDuration =
-          data?.preferred_trip_duration_days
+if (!response.success) {
+  throw new Error(
+    response.message ?? "Unable to load your travel preferences.",
+  );
+}
 
-        if (
-          typeof savedDuration ===
-            'number' &&
-          savedDuration > 0
-        ) {
-          setTripDurationDays(
-            savedDuration,
-          )
+const data = response.data;
 
-          if (
-            !QUICK_DURATIONS.includes(
-              savedDuration,
-            )
-          ) {
-            setCustomDuration(
-              String(savedDuration),
-            )
+        setInterests(data?.interests ?? []);
+
+        setTravelStyles(data?.travel_styles ?? []);
+
+        const savedDuration = data?.preferred_trip_duration_days;
+
+        if (typeof savedDuration === "number" && savedDuration > 0) {
+          setTripDurationDays(savedDuration);
+
+          if (!QUICK_DURATIONS.includes(savedDuration)) {
+            setCustomDuration(String(savedDuration));
           }
         } else {
-          setTripDurationDays(null)
-          setCustomDuration('')
+          setTripDurationDays(null);
+          setCustomDuration("");
         }
 
-        setCrowdPreference(
-          data?.crowd_preference ?? '',
-        )
+        setCrowdPreference(data?.crowd_preference ?? "");
 
-        const savedBudget =
-          data?.budget_per_day
+        const savedBudget = data?.budget_per_day;
 
-        if (
-          typeof savedBudget ===
-            'number' &&
-          savedBudget >= 0
-        ) {
-          setBudgetPerDay(savedBudget)
-          setBudgetInput(
-            String(savedBudget),
-          )
+        if (typeof savedBudget === "number" && savedBudget >= 0) {
+          setBudgetPerDay(savedBudget);
+          setBudgetInput(String(savedBudget));
         } else {
-          setBudgetPerDay(null)
-          setBudgetInput('')
+          setBudgetPerDay(null);
+          setBudgetInput("");
         }
 
-        setRegions(
-          data?.preferred_regions ?? [],
-        )
+        setRegions(data?.preferred_regions ?? []);
 
-        setFoodPreferences(
-          data?.food_preferences ?? [],
-        )
+        setFoodPreferences(data?.food_preferences ?? []);
 
-        setHasUnsavedChanges(false)
+        setTravelMonth(data?.travel_month ?? null);
+
+        setHasUnsavedChanges(false);
       } catch (err) {
         setError(
           err instanceof Error
             ? err.message
-            : 'Unable to load your travel preferences.',
-        )
+            : "Unable to load your travel preferences.",
+        );
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
 
-    loadPreferences()
-  }, [user])
+    loadPreferences();
+  }, [user]);
 
   /*
    * Temporary success notification.
    */
   useEffect(() => {
     if (!message) {
-      return
+      return;
     }
 
-    const timeout = window.setTimeout(
-      () => {
-        setMessage('')
-      },
-      3500,
-    )
+    const timeout = window.setTimeout(() => {
+      setMessage("");
+    }, 3500);
 
-    return () =>
-      window.clearTimeout(timeout)
-  }, [message])
+    return () => window.clearTimeout(timeout);
+  }, [message]);
 
   /*
    * Smoothly reveal reset confirmation.
    */
   useEffect(() => {
     if (!showResetConfirmation) {
-      return
+      return;
     }
 
-    const timeout = window.setTimeout(
-      () => {
-        resetConfirmationRef.current?.scrollIntoView(
-          {
-            behavior: 'smooth',
-            block: 'center',
-          },
-        )
-      },
-      80,
-    )
+    const timeout = window.setTimeout(() => {
+      resetConfirmationRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 80);
 
-    return () =>
-      window.clearTimeout(timeout)
-  }, [showResetConfirmation])
+    return () => window.clearTimeout(timeout);
+  }, [showResetConfirmation]);
 
   function markAsChanged() {
-    setHasUnsavedChanges(true)
-    setMessage('')
-    setError('')
+    setHasUnsavedChanges(true);
+    setMessage("");
+    setError("");
   }
 
   function toggleSelection(
@@ -411,124 +362,100 @@ function PreferencesPage() {
     setter: (values: string[]) => void,
   ) {
     if (current.includes(value)) {
-      setter(
-        current.filter(
-          (item) => item !== value,
-        ),
-      )
+      setter(current.filter((item) => item !== value));
     } else {
-      setter([...current, value])
+      setter([...current, value]);
     }
 
-    markAsChanged()
+    markAsChanged();
   }
 
-  function handleDurationChange(
-    days: number,
-  ) {
-    setTripDurationDays(days)
-    setCustomDuration('')
-    markAsChanged()
+  function handleDurationChange(days: number) {
+    setTripDurationDays(days);
+    setCustomDuration("");
+    markAsChanged();
   }
 
-  function handleCustomDurationChange(
-    value: string,
-  ) {
-    const cleanValue =
-      value.replace(/\D/g, '')
+  function handleCustomDurationChange(value: string) {
+    const cleanValue = value.replace(/\D/g, "");
 
-    setCustomDuration(cleanValue)
+    setCustomDuration(cleanValue);
 
-    if (cleanValue === '') {
-      setTripDurationDays(null)
+    if (cleanValue === "") {
+      setTripDurationDays(null);
     } else {
-      const parsed =
-        Number(cleanValue)
+      const parsed = Number(cleanValue);
 
-      if (
-        parsed >= 1 &&
-        parsed <= 365
-      ) {
-        setTripDurationDays(parsed)
+      if (parsed >= 1 && parsed <= 365) {
+        setTripDurationDays(parsed);
       }
     }
 
-    markAsChanged()
+    markAsChanged();
   }
 
-  function handleBudgetSliderChange(
-    value: string,
-  ) {
-    const parsed = Number(value)
+  function handleTravelMonthChange(month: number) {
+    setTravelMonth(month);
+    markAsChanged();
+  }
+
+  function handleBudgetSliderChange(value: string) {
+    const parsed = Number(value);
 
     if (!Number.isFinite(parsed)) {
-      return
+      return;
     }
 
-    setBudgetPerDay(parsed)
-    setBudgetInput(String(parsed))
-    markAsChanged()
+    setBudgetPerDay(parsed);
+    setBudgetInput(String(parsed));
+    markAsChanged();
   }
 
-  function handleBudgetInputChange(
-    value: string,
-  ) {
-    const cleanValue =
-      value.replace(/[^\d]/g, '')
+  function handleBudgetInputChange(value: string) {
+    const cleanValue = value.replace(/[^\d]/g, "");
 
-    setBudgetInput(cleanValue)
+    setBudgetInput(cleanValue);
 
-    if (cleanValue === '') {
-      setBudgetPerDay(null)
-      markAsChanged()
-      return
+    if (cleanValue === "") {
+      setBudgetPerDay(null);
+      markAsChanged();
+      return;
     }
 
-    const parsed =
-      Number(cleanValue)
+    const parsed = Number(cleanValue);
 
-    if (
-      parsed >= MIN_BUDGET &&
-      parsed <= MAX_BUDGET
-    ) {
-      setBudgetPerDay(parsed)
+    if (parsed >= MIN_BUDGET && parsed <= MAX_BUDGET) {
+      setBudgetPerDay(parsed);
     }
 
-    markAsChanged()
+    markAsChanged();
   }
 
   function commitBudgetInput() {
-    if (budgetInput === '') {
-      setBudgetPerDay(null)
-      return
+    if (budgetInput === "") {
+      setBudgetPerDay(null);
+      return;
     }
 
-    const parsed =
-      Number(budgetInput)
+    const parsed = Number(budgetInput);
 
     if (!Number.isFinite(parsed)) {
-      setBudgetPerDay(null)
-      setBudgetInput('')
-      return
+      setBudgetPerDay(null);
+      setBudgetInput("");
+      return;
     }
 
-    const clamped = Math.min(
-      MAX_BUDGET,
-      Math.max(MIN_BUDGET, parsed),
-    )
+    const clamped = Math.min(MAX_BUDGET, Math.max(MIN_BUDGET, parsed));
 
-    const rounded =
-      Math.round(
-        clamped / BUDGET_STEP,
-      ) * BUDGET_STEP
+    const rounded = Math.round(clamped / BUDGET_STEP) * BUDGET_STEP;
 
-    setBudgetPerDay(rounded)
-    setBudgetInput(String(rounded))
+    setBudgetPerDay(rounded);
+    setBudgetInput(String(rounded));
   }
 
   async function handleSave() {
     if (!user || !hasUnsavedChanges) {
-      return
+      return;
     }
 
     /*
@@ -536,184 +463,164 @@ function PreferencesPage() {
      */
     if (
       tripDurationDays !== null &&
-      (
-        tripDurationDays < 1 ||
-        tripDurationDays > 365
-      )
+      (tripDurationDays < 1 || tripDurationDays > 365)
     ) {
-      setError(
-        'Trip duration must be between 1 and 365 days.',
-      )
-      return
+      setError("Trip duration must be between 1 and 365 days.");
+      return;
     }
 
     /*
      * Validate budget before sending.
      */
-    if (
-      budgetPerDay !== null &&
-      (
-        budgetPerDay < 0 ||
-        budgetPerDay > 1000000
-      )
-    ) {
-      setError(
-        'Please enter a valid daily budget.',
-      )
-      return
+    if (budgetPerDay !== null && (budgetPerDay < 0 || budgetPerDay > 1000000)) {
+      setError("Please enter a valid daily budget.");
+      return;
     }
 
     try {
-      setSaving(true)
-      setError('')
-      setMessage('')
+      setSaving(true);
+      setError("");
+      setMessage("");
 
       /*
        * We continue writing the legacy fields
        * temporarily while the V2 fields become
        * the source of truth.
        */
-      await updateUserPreferences(
-        user.id,
-        {
-          interests,
+      const {
+  data: { session },
+} = await supabase.auth.getSession();
 
-          travel_styles:
-            travelStyles,
+if (!session) {
+  throw new Error("Your session has expired. Please sign in again.");
+}
 
-          preferred_trip_duration:
-            tripDurationDays
-              ? `${tripDurationDays} days`
-              : null,
+const response = await api.post<PreferencesResponse>(
+  "/preferences",
+  {
+    interests,
+    travel_styles: travelStyles,
+    preferred_trip_duration_days: tripDurationDays,
+    budget_per_day: budgetPerDay,
+    budget_currency: budgetPerDay !== null ? "INR" : null,
+    crowd_preference: crowdPreference || null,
+    preferred_regions: regions,
+    accessibility_needs: [],
+    food_preferences: foodPreferences,
+    language_preferences: [],
+    travel_month: travelMonth,
+  },
+  {
+    token: session.access_token,
+  },
+);
 
-          preferred_trip_duration_days:
-            tripDurationDays,
+if (!response.success) {
+  throw new Error(
+    response.message ?? "Unable to save your travel preferences.",
+  );
+}
 
-          crowd_preference:
-            crowdPreference || null,
+      setHasUnsavedChanges(false);
 
-          budget_preference:
-            budgetPerDay
-              ? `₹${budgetPerDay}/day`
-              : null,
-
-          budget_per_day:
-            budgetPerDay,
-
-          budget_currency:
-            budgetPerDay !== null
-              ? 'INR'
-              : null,
-
-          preferred_regions:
-            regions,
-
-          food_preferences:
-            foodPreferences,
-        },
-      )
-
-      setHasUnsavedChanges(false)
-
-      setMessage(
-        'Your travel preferences have been saved.',
-      )
+      setMessage("Your travel preferences have been saved.");
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : 'Unable to save your travel preferences.',
-      )
+          : "Unable to save your travel preferences.",
+      );
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
   async function handleResetPreferences() {
     if (!user) {
-      return
+      return;
     }
 
     try {
-      setResetting(true)
-      setError('')
-      setMessage('')
+      setResetting(true);
+      setError("");
+      setMessage("");
 
-      await updateUserPreferences(
-        user.id,
-        {
-          interests: [],
+      const {
+  data: { session },
+} = await supabase.auth.getSession();
 
-          travel_styles: [],
+if (!session) {
+  throw new Error("Your session has expired. Please sign in again.");
+}
 
-          preferred_trip_duration:
-            null,
+const response = await api.post<PreferencesResponse>(
+  "/preferences",
+  {
+    interests: [],
+    travel_styles: [],
+    preferred_trip_duration_days: null,
+    budget_per_day: null,
+    budget_currency: null,
+    crowd_preference: null,
+    preferred_regions: [],
+    accessibility_needs: [],
+    food_preferences: [],
+    language_preferences: [],
+    travel_month: null,
+  },
+  {
+    token: session.access_token,
+  },
+);
 
-          preferred_trip_duration_days:
-            null,
+if (!response.success) {
+  throw new Error(
+    response.message ?? "Unable to reset your travel preferences.",
+  );
+}
 
-          crowd_preference:
-            null,
+      setInterests([]);
+      setTravelStyles([]);
 
-          budget_preference:
-            null,
+      setTripDurationDays(null);
+      setCustomDuration("");
 
-          budget_per_day:
-            null,
+      setCrowdPreference("");
 
-          budget_currency:
-            null,
+      setBudgetPerDay(null);
+      setBudgetInput("");
 
-          preferred_regions: [],
+      setRegions([]);
+      setFoodPreferences([]);
+      setTravelMonth(null);
 
-          food_preferences: [],
-        },
-      )
+      setHasUnsavedChanges(false);
 
-      setInterests([])
-      setTravelStyles([])
-
-      setTripDurationDays(null)
-      setCustomDuration('')
-
-      setCrowdPreference('')
-
-      setBudgetPerDay(null)
-      setBudgetInput('')
-
-      setRegions([])
-      setFoodPreferences([])
-
-      setHasUnsavedChanges(false)
-
-      setShowResetConfirmation(false)
+      setShowResetConfirmation(false);
 
       setMessage(
-        'Your preferences have been cleared. Khoj is ready for a fresh start.',
-      )
+        "Your preferences have been cleared. Khoj is ready for a fresh start.",
+      );
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : 'Unable to reset your travel preferences.',
-      )
+          : "Unable to reset your travel preferences.",
+      );
     } finally {
-      setResetting(false)
+      setResetting(false);
     }
   }
 
   function handleStartFresh() {
-    navigate('/plan', {
+    navigate("/plan", {
       state: {
         freshStart: true,
       },
-    })
+    });
   }
 
-  if (
-    authLoading ||
-    (user && loading)
-  ) {
+  if (authLoading || (user && loading)) {
     return (
       <section className="section-khoj min-h-[70vh]">
         <div className="container-khoj flex min-h-[60vh] items-center justify-center">
@@ -722,51 +629,41 @@ function PreferencesPage() {
             animate={{ opacity: 1 }}
             className="body-khoj"
           >
-            Understanding your way of
-            travelling...
+            Understanding your way of travelling...
           </motion.p>
         </div>
       </section>
-    )
+    );
   }
 
   if (!user) {
     return (
       <section className="section-khoj min-h-[70vh]">
         <div className="container-khoj flex min-h-[60vh] flex-col items-center justify-center text-center">
-          <p className="eyebrow-khoj">
-            KHOJ INTELLIGENCE
-          </p>
+          <p className="eyebrow-khoj">KHOJ INTELLIGENCE</p>
 
           <h1 className="heading-khoj mt-4 max-w-2xl">
             Tell Khoj how you travel.
           </h1>
 
           <p className="body-khoj mt-5 max-w-xl">
-            Sign in to create your traveller
-            profile and personalise the
+            Sign in to create your traveller profile and personalise the
             journeys Khoj discovers for you.
           </p>
 
-          <Link
-            to="/login"
-            className="button-khoj mt-8"
-          >
+          <Link to="/login" className="button-khoj mt-8">
             Sign in
           </Link>
         </div>
       </section>
-    )
+    );
   }
 
-  const sliderValue =
-    budgetPerDay ??
-    MIN_BUDGET
+  const sliderValue = budgetPerDay ?? MIN_BUDGET;
 
   return (
     <section className="section-khoj">
       <div className="container-khoj">
-
         {/* Header */}
         <motion.div
           initial={{
@@ -791,39 +688,26 @@ function PreferencesPage() {
             Back to profile
           </Link>
 
-          <p className="eyebrow-khoj mt-10">
-            KHOJ INTELLIGENCE
-          </p>
+          <p className="eyebrow-khoj mt-10">KHOJ INTELLIGENCE</p>
 
           <h1 className="heading-khoj mt-4 max-w-4xl">
             Tell us how
             <br />
-            <span className="text-[var(--color-accent)]">
-              you travel.
-            </span>
+            <span className="text-[var(--color-accent)]">you travel.</span>
           </h1>
 
           <p className="body-khoj mt-5 max-w-2xl">
-            There is no right way to explore
-            India. Choose what feels like you,
-            and Khoj will use it to shape
-            better discoveries.
+            There is no right way to explore India. Choose what feels like you,
+            and Khoj will use it to shape better discoveries.
           </p>
 
           <div className="mt-6 inline-flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-            <Sparkles
-              size={15}
-              className="text-[var(--color-accent)]"
-            />
-            <span>
-              You are editing your traveller
-              profile.
-            </span>
+            <Sparkles size={15} className="text-[var(--color-accent)]" />
+            <span>You are editing your traveller profile.</span>
           </div>
         </motion.div>
 
         <div className="space-y-16">
-
           {/* 01 — Interests */}
           <motion.section
             initial={{
@@ -847,25 +731,17 @@ function PreferencesPage() {
             />
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {INTERESTS.map(
-                (interest) => (
-                  <SelectionTile
-                    key={interest}
-                    label={interest}
-                    selected={interests.includes(
-                      interest,
-                    )}
-                    multiple
-                    onClick={() =>
-                      toggleSelection(
-                        interest,
-                        interests,
-                        setInterests,
-                      )
-                    }
-                  />
-                ),
-              )}
+              {INTERESTS.map((interest) => (
+                <SelectionTile
+                  key={interest}
+                  label={interest}
+                  selected={interests.includes(interest)}
+                  multiple
+                  onClick={() =>
+                    toggleSelection(interest, interests, setInterests)
+                  }
+                />
+              ))}
             </div>
           </motion.section>
 
@@ -892,25 +768,17 @@ function PreferencesPage() {
             />
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {TRAVEL_STYLES.map(
-                (style) => (
-                  <SelectionTile
-                    key={style}
-                    label={style}
-                    selected={travelStyles.includes(
-                      style,
-                    )}
-                    multiple
-                    onClick={() =>
-                      toggleSelection(
-                        style,
-                        travelStyles,
-                        setTravelStyles,
-                      )
-                    }
-                  />
-                ),
-              )}
+              {TRAVEL_STYLES.map((style) => (
+                <SelectionTile
+                  key={style}
+                  label={style}
+                  selected={travelStyles.includes(style)}
+                  multiple
+                  onClick={() =>
+                    toggleSelection(style, travelStyles, setTravelStyles)
+                  }
+                />
+              ))}
             </div>
           </motion.section>
 
@@ -937,35 +805,18 @@ function PreferencesPage() {
             />
 
             <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 lg:grid-cols-8">
-              {QUICK_DURATIONS.map(
-                (days) => (
-                  <SelectionTile
-                    key={days}
-                    label={`${days} ${
-                      days === 1
-                        ? 'day'
-                        : 'days'
-                    }`}
-                    selected={
-                      tripDurationDays ===
-                        days &&
-                      !customDuration
-                    }
-                    onClick={() =>
-                      handleDurationChange(
-                        days,
-                      )
-                    }
-                  />
-                ),
-              )}
+              {QUICK_DURATIONS.map((days) => (
+                <SelectionTile
+                  key={days}
+                  label={`${days} ${days === 1 ? "day" : "days"}`}
+                  selected={tripDurationDays === days && !customDuration}
+                  onClick={() => handleDurationChange(days)}
+                />
+              ))}
             </div>
 
             <div className="mt-6 max-w-md">
-              <label
-                htmlFor="custom-duration"
-                className="text-sm font-medium"
-              >
+              <label htmlFor="custom-duration" className="text-sm font-medium">
                 Or choose your own
               </label>
 
@@ -977,9 +828,7 @@ function PreferencesPage() {
                   max={365}
                   value={customDuration}
                   onChange={(event) =>
-                    handleCustomDurationChange(
-                      event.target.value,
-                    )
+                    handleCustomDurationChange(event.target.value)
                   }
                   placeholder="e.g. 12"
                   className="w-full bg-transparent px-4 py-3 outline-none"
@@ -991,8 +840,7 @@ function PreferencesPage() {
               </div>
 
               <p className="mt-2 text-xs text-[var(--color-text-secondary)]">
-                Choose anywhere from 1 to 365
-                days.
+                Choose anywhere from 1 to 365 days.
               </p>
             </div>
           </motion.section>
@@ -1020,24 +868,17 @@ function PreferencesPage() {
             />
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {CROWD_PREFERENCES.map(
-                (preference) => (
-                  <SelectionTile
-                    key={preference}
-                    label={preference}
-                    selected={
-                      crowdPreference ===
-                      preference
-                    }
-                    onClick={() => {
-                      setCrowdPreference(
-                        preference,
-                      )
-                      markAsChanged()
-                    }}
-                  />
-                ),
-              )}
+              {CROWD_PREFERENCES.map((preference) => (
+                <SelectionTile
+                  key={preference}
+                  label={preference}
+                  selected={crowdPreference === preference}
+                  onClick={() => {
+                    setCrowdPreference(preference);
+                    markAsChanged();
+                  }}
+                />
+              ))}
             </div>
           </motion.section>
 
@@ -1064,7 +905,6 @@ function PreferencesPage() {
             />
 
             <div className="max-w-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 md:p-8">
-
               <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className="text-sm text-[var(--color-text-secondary)]">
@@ -1078,10 +918,8 @@ function PreferencesPage() {
 
                     <span className="text-4xl font-medium tracking-tight">
                       {budgetPerDay
-                        ? budgetPerDay.toLocaleString(
-                            'en-IN',
-                          )
-                        : '—'}
+                        ? budgetPerDay.toLocaleString("en-IN")
+                        : "—"}
                     </span>
 
                     <span className="text-sm text-[var(--color-text-secondary)]">
@@ -1091,10 +929,7 @@ function PreferencesPage() {
                 </div>
 
                 <div className="w-full sm:w-48">
-                  <label
-                    htmlFor="budget-input"
-                    className="sr-only"
-                  >
+                  <label htmlFor="budget-input" className="sr-only">
                     Daily budget in Indian rupees
                   </label>
 
@@ -1109,13 +944,9 @@ function PreferencesPage() {
                       inputMode="numeric"
                       value={budgetInput}
                       onChange={(event) =>
-                        handleBudgetInputChange(
-                          event.target.value,
-                        )
+                        handleBudgetInputChange(event.target.value)
                       }
-                      onBlur={
-                        commitBudgetInput
-                      }
+                      onBlur={commitBudgetInput}
                       placeholder="5000"
                       className="w-full bg-transparent px-2 py-3 text-sm outline-none"
                     />
@@ -1124,10 +955,7 @@ function PreferencesPage() {
               </div>
 
               <div className="mt-8">
-                <label
-                  htmlFor="budget-slider"
-                  className="sr-only"
-                >
+                <label htmlFor="budget-slider" className="sr-only">
                   Daily budget
                 </label>
 
@@ -1139,36 +967,21 @@ function PreferencesPage() {
                   step={BUDGET_STEP}
                   value={sliderValue}
                   onChange={(event) =>
-                    handleBudgetSliderChange(
-                      event.target.value,
-                    )
+                    handleBudgetSliderChange(event.target.value)
                   }
                   className="w-full cursor-pointer accent-[var(--color-accent)]"
                 />
 
                 <div className="mt-2 flex justify-between text-xs text-[var(--color-text-secondary)]">
-                  <span>
-                    ₹
-                    {MIN_BUDGET.toLocaleString(
-                      'en-IN',
-                    )}
-                  </span>
+                  <span>₹{MIN_BUDGET.toLocaleString("en-IN")}</span>
 
-                  <span>
-                    ₹
-                    {MAX_BUDGET.toLocaleString(
-                      'en-IN',
-                    )}
-                    +
-                  </span>
+                  <span>₹{MAX_BUDGET.toLocaleString("en-IN")}+</span>
                 </div>
               </div>
 
               <p className="mt-6 text-sm leading-6 text-[var(--color-text-secondary)]">
-                This is not a spending limit. It
-                simply gives Khoj a signal when
-                balancing stays, food, transport and
-                experiences.
+                This is not a spending limit. It simply gives Khoj a signal when
+                balancing stays, food, transport and experiences.
               </p>
             </div>
           </motion.section>
@@ -1196,25 +1009,15 @@ function PreferencesPage() {
             />
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {REGIONS.map(
-                (region) => (
-                  <SelectionTile
-                    key={region}
-                    label={region}
-                    selected={regions.includes(
-                      region,
-                    )}
-                    multiple
-                    onClick={() =>
-                      toggleSelection(
-                        region,
-                        regions,
-                        setRegions,
-                      )
-                    }
-                  />
-                ),
-              )}
+              {REGIONS.map((region) => (
+                <SelectionTile
+                  key={region}
+                  label={region}
+                  selected={regions.includes(region)}
+                  multiple
+                  onClick={() => toggleSelection(region, regions, setRegions)}
+                />
+              ))}
             </div>
           </motion.section>
 
@@ -1241,26 +1044,61 @@ function PreferencesPage() {
             />
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {FOOD_PREFERENCES.map(
-                (food) => (
-                  <SelectionTile
-                    key={food}
-                    label={food}
-                    selected={foodPreferences.includes(
-                      food,
-                    )}
-                    multiple
-                    onClick={() =>
-                      toggleSelection(
-                        food,
-                        foodPreferences,
-                        setFoodPreferences,
-                      )
-                    }
-                  />
-                ),
-              )}
+              {FOOD_PREFERENCES.map((food) => (
+                <SelectionTile
+                  key={food}
+                  label={food}
+                  selected={foodPreferences.includes(food)}
+                  multiple
+                  onClick={() =>
+                    toggleSelection(food, foodPreferences, setFoodPreferences)
+                  }
+                />
+              ))}
             </div>
+          </motion.section>
+
+          {/* 08 — Travel month */}
+          <motion.section
+            initial={{
+              opacity: 0,
+              y: 18,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+            }}
+            transition={{
+              duration: 0.5,
+              delay: 0.4,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+          >
+            <SectionHeading
+              eyebrow="08 — WHEN ARE YOU GOING"
+              title="When would you like to explore?"
+              description="Your travel month helps Khoj understand seasonal conditions, crowd patterns and the best time to visit each destination."
+            />
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+              {MONTHS.map((month, index) => {
+                const monthNumber = index + 1;
+
+                return (
+                  <SelectionTile
+                    key={month}
+                    label={month}
+                    selected={travelMonth === monthNumber}
+                    onClick={() => handleTravelMonthChange(monthNumber)}
+                  />
+                );
+              })}
+            </div>
+
+            <p className="mt-4 text-xs text-[var(--color-text-secondary)]">
+              Choose the month you are most likely to travel. Khoj can use this
+              when evaluating seasonal suitability.
+            </p>
           </motion.section>
 
           {/* Save */}
@@ -1283,34 +1121,23 @@ function PreferencesPage() {
             <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-lg font-medium">
-                  Ready to let Khoj learn your
-                  rhythm?
+                  Ready to let Khoj learn your rhythm?
                 </p>
 
                 <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
-                  You can change these
-                  preferences at any time.
+                  You can change these preferences at any time.
                 </p>
               </div>
 
               <motion.button
                 type="button"
                 onClick={handleSave}
-                disabled={
-                  saving ||
-                  !hasUnsavedChanges
-                }
+                disabled={saving || !hasUnsavedChanges}
                 whileHover={
-                  hasUnsavedChanges &&
-                  !saving
-                    ? { y: -2 }
-                    : undefined
+                  hasUnsavedChanges && !saving ? { y: -2 } : undefined
                 }
                 whileTap={
-                  hasUnsavedChanges &&
-                  !saving
-                    ? { scale: 0.98 }
-                    : undefined
+                  hasUnsavedChanges && !saving ? { scale: 0.98 } : undefined
                 }
                 transition={{
                   duration: 0.2,
@@ -1366,9 +1193,7 @@ function PreferencesPage() {
                     className="shrink-0 text-[var(--color-accent)]"
                   />
 
-                  <span>
-                    {message}
-                  </span>
+                  <span>{message}</span>
                 </div>
               </motion.div>
             )}
@@ -1418,25 +1243,20 @@ function PreferencesPage() {
             }}
             className="border-t border-[var(--color-border)] pt-14"
           >
-            <p className="eyebrow-khoj">
-              YOUR KHOJ PROFILE
-            </p>
+            <p className="eyebrow-khoj">YOUR KHOJ PROFILE</p>
 
             <h2 className="mt-4 text-2xl font-medium tracking-tight md:text-3xl">
               Change the way Khoj knows you.
             </h2>
 
             <p className="mt-3 max-w-2xl leading-7 text-[var(--color-text-secondary)]">
-              Your preferences are the personal
-              layer Khoj uses to understand your
-              travel style. Change them whenever
-              your interests change, clear them when
-              you want a blank slate, or start a
-              completely new discovery with Khoj.
+              Your preferences are the personal layer Khoj uses to understand
+              your travel style. Change them whenever your interests change,
+              clear them when you want a blank slate, or start a completely new
+              discovery with Khoj.
             </p>
 
             <div className="mt-8 grid gap-4 lg:grid-cols-2">
-
               {/* Start Fresh */}
               <motion.button
                 type="button"
@@ -1464,9 +1284,7 @@ function PreferencesPage() {
                       }}
                       className="mb-4 flex h-10 w-10 items-center justify-center border border-[var(--color-border)]"
                     >
-                      <Sparkles
-                        size={18}
-                      />
+                      <Sparkles size={18} />
                     </motion.div>
 
                     <h3 className="text-xl font-medium">
@@ -1474,11 +1292,9 @@ function PreferencesPage() {
                     </h3>
 
                     <p className="mt-3 max-w-md text-sm leading-6 text-[var(--color-text-secondary)]">
-                      Looking for something
-                      different? Begin a new
-                      discovery conversation and
-                      tell Khoj what you want from
-                      your next journey.
+                      Looking for something different? Begin a new discovery
+                      conversation and tell Khoj what you want from your next
+                      journey.
                     </p>
                   </div>
 
@@ -1509,30 +1325,20 @@ function PreferencesPage() {
                   }}
                   className="mb-4 flex h-10 w-10 items-center justify-center border border-[var(--color-border)]"
                 >
-                  <RotateCcw
-                    size={18}
-                  />
+                  <RotateCcw size={18} />
                 </motion.div>
 
-                <h3 className="text-xl font-medium">
-                  Reset your Khoj profile
-                </h3>
+                <h3 className="text-xl font-medium">Reset your Khoj profile</h3>
 
                 <p className="mt-3 max-w-md text-sm leading-6 text-[var(--color-text-secondary)]">
-                  Clear the travel preferences
-                  Khoj currently uses to personalise
-                  your recommendations. Your account,
-                  profile, journeys and saved places
-                  stay untouched.
+                  Clear the travel preferences Khoj currently uses to
+                  personalise your recommendations. Your account, profile,
+                  journeys and saved places stay untouched.
                 </p>
 
                 <motion.button
                   type="button"
-                  onClick={() =>
-                    setShowResetConfirmation(
-                      true,
-                    )
-                  }
+                  onClick={() => setShowResetConfirmation(true)}
                   whileHover={{
                     x: 2,
                   }}
@@ -1573,30 +1379,20 @@ function PreferencesPage() {
                 }}
                 className="border border-[var(--color-accent)] bg-[var(--color-surface)] p-6 md:p-8"
               >
-                <p className="eyebrow-khoj">
-                  RESET KHOJ PROFILE
-                </p>
+                <p className="eyebrow-khoj">RESET KHOJ PROFILE</p>
 
-                <h3 className="mt-4 text-2xl font-medium">
-                  Are you sure?
-                </h3>
+                <h3 className="mt-4 text-2xl font-medium">Are you sure?</h3>
 
                 <p className="mt-3 max-w-2xl leading-7 text-[var(--color-text-secondary)]">
-                  This will clear your travel
-                  preferences from Khoj. Your
-                  profile, saved places, journeys,
-                  reviews and account will remain
-                  untouched.
+                  This will clear your travel preferences from Khoj. Your
+                  profile, saved places, journeys, reviews and account will
+                  remain untouched.
                 </p>
 
                 <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                   <button
                     type="button"
-                    onClick={() =>
-                      setShowResetConfirmation(
-                        false,
-                      )
-                    }
+                    onClick={() => setShowResetConfirmation(false)}
                     disabled={resetting}
                     className="border border-[var(--color-border)] px-5 py-3 text-sm font-medium transition-colors hover:border-[var(--color-text-primary)] disabled:opacity-50"
                   >
@@ -1605,20 +1401,10 @@ function PreferencesPage() {
 
                   <motion.button
                     type="button"
-                    onClick={
-                      handleResetPreferences
-                    }
+                    onClick={handleResetPreferences}
                     disabled={resetting}
-                    whileHover={
-                      !resetting
-                        ? { y: -2 }
-                        : undefined
-                    }
-                    whileTap={
-                      !resetting
-                        ? { scale: 0.98 }
-                        : undefined
-                    }
+                    whileHover={!resetting ? { y: -2 } : undefined}
+                    whileTap={!resetting ? { scale: 0.98 } : undefined}
                     transition={{
                       duration: 0.2,
                     }}
@@ -1631,9 +1417,7 @@ function PreferencesPage() {
                       </>
                     ) : (
                       <>
-                        <RotateCcw
-                          size={15}
-                        />
+                        <RotateCcw size={15} />
                         Reset everything
                       </>
                     )}
@@ -1642,11 +1426,10 @@ function PreferencesPage() {
               </motion.div>
             )}
           </AnimatePresence>
-
         </div>
       </div>
     </section>
-  )
+  );
 }
 
-export default PreferencesPage
+export default PreferencesPage;

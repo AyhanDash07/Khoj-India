@@ -47,7 +47,8 @@ export async function getRecommendations(
     ) {
       res.status(400).json({
         success: false,
-        message: 'max_results must be a positive integer.',
+        message:
+          'max_results must be a positive integer.',
       })
       return
     }
@@ -56,15 +57,21 @@ export async function getRecommendations(
       user.id,
       {
         ...(destinationType
-          ? { destination_type: destinationType }
+          ? {
+              destination_type: destinationType,
+            }
           : {}),
 
         ...(preferredRegion
-          ? { preferred_region: preferredRegion }
+          ? {
+              preferred_region: preferredRegion,
+            }
           : {}),
 
         ...(maxResultsRaw !== undefined
-          ? { max_results: maxResultsRaw }
+          ? {
+              max_results: maxResultsRaw,
+            }
           : {}),
       },
     )

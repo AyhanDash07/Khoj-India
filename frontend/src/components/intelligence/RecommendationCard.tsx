@@ -5,7 +5,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 
-import type { Recommendation } from '../../services/recommendationService'
+import type { Recommendation } from '../../types/recommendations'
 
 interface RecommendationCardProps {
   recommendation: Recommendation

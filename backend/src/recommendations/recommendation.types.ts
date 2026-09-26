@@ -1,23 +1,49 @@
-import type {
-  IntelligenceResult,
-} from './intelligence.types.js'
+import type { IntelligenceResult } from './intelligence.types.js'
 
-/**
- * A single destination recommendation produced by
- * Khoj Intelligence.
- */
+export interface RecommendationDestination {
+  id: number
+  name: string
+  slug: string | null
+
+  short_description: string | null
+  description: string | null
+
+  destination_type: string | null
+
+  state_name: string | null
+
+  latitude: number | null
+  longitude: number | null
+
+  image_url: string | null
+  image_alt: string | null
+  image_caption: string | null
+
+  featured: boolean
+  verified: boolean
+}
+
 export interface Recommendation {
   rank: number
 
   destination: {
-    id: number
-    name: string
-    slug: string | null
-    short_description: string | null
-    destination_type: string | null
-    featured: boolean
-    verified: boolean
-  }
+  id: number
+  name: string
+  slug: string | null
+  short_description: string | null
+  description: string | null
+  destination_type: string | null
+  state_name: string | null
+  latitude: number | null
+  longitude: number | null
+
+  image_url: string | null
+  image_alt: string | null
+  image_caption: string | null
+
+  featured: boolean
+  verified: boolean
+}
 
   intelligence: IntelligenceResult
 
@@ -35,9 +61,6 @@ export interface Recommendation {
     | 'Limited confidence'
 }
 
-/**
- * Summary of the complete recommendation set.
- */
 export interface RecommendationSummary {
   total_destinations_evaluated: number
   recommendations_returned: number
@@ -49,30 +72,31 @@ export interface RecommendationSummary {
   } | null
 }
 
-/**
- * Response returned by the Smart Discovery endpoint.
- */
+export interface RedistributionSuggestion {
+  source_destination_id: number
+  source_destination_name: string
+  alternative_destination_id: number
+  alternative_destination_name: string
+  source_pressure_score: number
+  alternative_pressure_score: number
+  personal_fit_score: number
+  reason: string
+}
+
 export interface RecommendationResponse {
   recommendations: Recommendation[]
+  redistribution_suggestions: RedistributionSuggestion[]
   summary: RecommendationSummary
 }
 
-/**
- * Optional filters that can later be used by
- * Smart Discovery.
- *
- * These are intentionally kept simple for V1.
- */
 export interface RecommendationFilters {
   destination_type?: string
   preferred_region?: string
   max_results?: number
 }
 
-/**
- * Complete input required by the recommendation engine.
- */
 export interface RecommendationInput {
   user_id: string
+  travel_month?: number | null
   filters?: RecommendationFilters
 }

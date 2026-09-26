@@ -9,6 +9,7 @@ export interface TravellerPreferences {
   accessibility_needs: string[]
   food_preferences: string[]
   language_preferences: string[]
+  travel_month: number | null
 }
 
 export interface DestinationProfile {
@@ -22,8 +23,8 @@ export interface DestinationProfile {
   longitude: number | null
   featured: boolean
   verified: boolean
+  state_name: string | null
 
-state_name: string | null
   tags: {
     interests: string[]
     travel_styles: string[]
@@ -62,6 +63,16 @@ export interface DestinationIntelligence {
     accessible_restrooms: boolean | null
     accessibility_notes: string | null
   }
+
+  seasonality: {
+    suitability_score: number | null
+    season_label: string | null
+    weather_notes: string | null
+    accessibility_notes: string | null
+    crowd_notes: string | null
+    data_source: string | null
+    measured_at: string | null
+  }
 }
 
 export interface DestinationExperience {
@@ -78,7 +89,12 @@ export interface IntelligenceInput {
   traveller: TravellerPreferences
   destination: DestinationProfile
   intelligence: DestinationIntelligence
+
   experiences: DestinationExperience[]
+
+  context: {
+    travel_month: number | null
+  }
 }
 
 export type MatchStatus =
@@ -109,15 +125,20 @@ export interface IntelligenceScore {
   safety: number | null
   pressure: number | null
   accessibility: number | null
+  seasonality: number | null
   overall: number
+
   breakdown: PersonalFitBreakdown
+
   confidence: IntelligenceConfidence
 }
 
 export interface IntelligenceResult {
   destination_id: number
   destination_name: string
+
   score: IntelligenceScore
+
   reasons: string[]
   cautions: string[]
 }
@@ -125,7 +146,9 @@ export interface IntelligenceResult {
 export interface IntelligenceConfidence {
   score: number
   level: 'high' | 'moderate' | 'limited'
+
   available_dimensions: number
   total_dimensions: number
+
   missing_dimensions: string[]
 }

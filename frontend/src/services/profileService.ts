@@ -34,6 +34,7 @@ export interface UserPreferences {
   accessibility_needs: string[]
   food_preferences: string[]
   language_preferences: string[]
+  travel_month: number | null
 
   updated_at: string
 }
@@ -129,6 +130,7 @@ export async function getUserPreferences(
       accessibility_needs,
       food_preferences,
       language_preferences,
+      travel_month,
       updated_at
     `)
     .eq('user_id', userId)
@@ -165,6 +167,7 @@ export async function updateUserPreferences(
       accessibility_needs,
       food_preferences,
       language_preferences,
+      travel_month,
       updated_at
     `)
     .single()
