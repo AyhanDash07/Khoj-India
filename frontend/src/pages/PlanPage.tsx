@@ -1,6 +1,7 @@
 import {
   AlertCircle,
   ArrowRight,
+  CheckCircle2,
   Compass,
   MapPin,
   Mic,
@@ -8,7 +9,7 @@ import {
   ShieldAlert,
   Sparkles,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import Badge from '../components/common/Badge'
@@ -17,8 +18,10 @@ import RecommendationCard from '../components/intelligence/RecommendationCard'
 import PageHeader from '../components/layout/PageHeader'
 import PageLayout from '../components/layout/PageLayout'
 import { useAuth } from '../hooks/useAuth'
+import { getPreferences } from '../services/preferenceService'
 import { getRecommendations } from '../services/recommendationService'
 import type { RecommendationData } from '../types/recommendations'
+import type { TravellerPreferences } from '../types/traveller'
 
 const quickPreferences = [
   'Nature',
@@ -35,9 +38,91 @@ function PlanPage() {
   const [prompt, setPrompt] = useState('')
   const [preferences, setPreferences] = useState<string[]>([])
 
+  // Preference Sync State
+  const [prefLoading, setPrefLoading] = useState(false)
+  const [savedPreferences, setSavedPreferences] =
+    useState<TravellerPreferences | null>(null)
+  const [isModified, setIsModified] = useState(false)
+
+  // Recommendation State
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<RecommendationData | null>(null)
+
+  /*
+   * Fetch saved user preferences on mount / auth change
+   * and pre-fill compatible quick preference fields.
+   */
+  useEffect(() => {
+    if (!user || !session) {
+      setSavedPreferences(null)
+      setPrefLoading(false)
+      return
+    }
+
+    let isMounted = true
+
+    async function loadSavedPreferences() {
+      try {
+        setPrefLoading(true)
+        const prefs = await getPreferences()
+
+        if (!isMounted) return
+
+        if (prefs) {
+          setSavedPreferences(prefs)
+
+          const prefilled: string[] = []
+          const savedInterests = (prefs.interests ?? []).map((i) =>
+            i.toLowerCase(),
+          )
+          const savedStyles = (prefs.travel_styles ?? []).map((s) =>
+            s.toLowerCase(),
+          )
+
+          if (savedInterests.includes('nature')) prefilled.push('Nature')
+          if (
+            savedInterests.includes('culture') ||
+            savedInterests.includes('heritage')
+          ) {
+            prefilled.push('Culture')
+          }
+          if (savedInterests.includes('food')) prefilled.push('Food')
+          if (
+            savedInterests.includes('adventure') ||
+            savedStyles.includes('adventure')
+          ) {
+            prefilled.push('Adventure')
+          }
+          if (
+            savedStyles.some(
+              (s) =>
+                s.includes('slow') ||
+                s.includes('relaxed') ||
+                s.includes('immersive'),
+            )
+          ) {
+            prefilled.push('Slow travel')
+          }
+
+          setPreferences(prefilled)
+          setIsModified(false)
+        }
+      } catch (err) {
+        console.warn('[KHOJ] Could not preload saved preferences:', err)
+      } finally {
+        if (isMounted) {
+          setPrefLoading(false)
+        }
+      }
+    }
+
+    void loadSavedPreferences()
+
+    return () => {
+      isMounted = false
+    }
+  }, [user, session])
 
   const togglePreference = (preference: string) => {
     setPreferences((current) =>
@@ -45,6 +130,7 @@ function PlanPage() {
         ? current.filter((item) => item !== preference)
         : [...current, preference],
     )
+    setIsModified(true)
   }
 
   const canDiscover = prompt.trim().length > 0 || preferences.length > 0
@@ -59,10 +145,19 @@ function PlanPage() {
       setLoading(true)
       setError(null)
 
-      const primaryType = preferences[0] || undefined
+      let primaryType: string | undefined = undefined
+      const firstPref = preferences[0]?.toLowerCase()
+
+      if (firstPref === 'nature') primaryType = 'nature'
+      else if (firstPref === 'culture') primaryType = 'cultural'
+      else if (firstPref === 'adventure') primaryType = 'adventure'
+
+      const preferredRegion =
+        savedPreferences?.preferred_regions?.[0] || undefined
 
       const result = await getRecommendations({
-        destination_type: primaryType,
+        ...(primaryType ? { destination_type: primaryType } : {}),
+        ...(preferredRegion ? { preferred_region: preferredRegion } : {}),
         max_results: 6,
       })
 
@@ -137,7 +232,7 @@ function PlanPage() {
 
           {/* Quick Preferences */}
           <div className="mt-9">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-text-muted)]">
                   Or choose a few
@@ -148,11 +243,25 @@ function PlanPage() {
                 </p>
               </div>
 
-              {preferences.length > 0 && (
+              {prefLoading ? (
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  Loading your saved preferences...
+                </span>
+              ) : savedPreferences && !isModified ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 px-3 py-1 text-xs text-[var(--color-gold-soft)]">
+                  <CheckCircle2 size={13} />
+                  Using your saved travel preferences
+                </span>
+              ) : savedPreferences && isModified ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-1 text-xs text-[var(--color-text-secondary)]">
+                  <Sparkles size={12} className="text-[var(--color-gold-soft)]" />
+                  Customized for this journey
+                </span>
+              ) : preferences.length > 0 ? (
                 <span className="text-xs text-[var(--color-gold-soft)]">
                   {preferences.length} selected
                 </span>
-              )}
+              ) : null}
             </div>
 
             <div className="mt-4 flex flex-wrap gap-3">
