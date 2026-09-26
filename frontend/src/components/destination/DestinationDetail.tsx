@@ -414,257 +414,313 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
       {/* KHOJ INTELLIGENCE */}
       {/* -------------------------------------------------- */}
 
-      <section className="mx-auto max-w-7xl px-6 py-28 lg:px-10 lg:py-40">
-        <div className="mb-14 max-w-2xl">
-          <p className="mb-4 text-xs uppercase tracking-[0.28em] text-[#FF9933]">
-            Khoj intelligence
-          </p>
+      {(() => {
+        const hasImpactScore = intelligence.impact?.impact_score !== null && intelligence.impact?.impact_score !== undefined;
+        const hasPressure = Boolean(intelligence.pressure?.pressure_level);
+        const hasSafety = Boolean(intelligence.safety?.safety_level);
+        const hasBestTime = bestMonths.length > 0;
 
-          <h2 className="font-serif text-4xl leading-tight sm:text-5xl">
-            A quick read
-            <br />
-            before you go.
-          </h2>
+        if (!hasImpactScore && !hasPressure && !hasSafety && !hasBestTime) {
+          return null;
+        }
 
-          <p className="mt-5 max-w-xl text-sm leading-7 text-[#F8F1E5]/50">
-            A few signals that help put this destination into context.
-          </p>
-        </div>
+        return (
+          <section className="mx-auto max-w-7xl px-6 py-28 lg:px-10 lg:py-40">
+            <div className="mb-14 max-w-2xl">
+              <p className="mb-4 text-xs uppercase tracking-[0.28em] text-[#FF9933]">
+                Khoj intelligence
+              </p>
 
-        <div className="grid gap-px overflow-hidden border border-[#F8F1E5]/10 bg-[#F8F1E5]/10 md:grid-cols-2 lg:grid-cols-4">
-          <IntelligenceMetric
-            label="Impact"
-            value={formatScore(intelligence.impact?.impact_score ?? null)}
-            suffix="/100"
-            icon={<Sparkles size={18} />}
-          />
+              <h2 className="font-serif text-4xl leading-tight sm:text-5xl">
+                A quick read
+                <br />
+                before you go.
+              </h2>
 
-          <IntelligenceMetric
-            label="Tourism pressure"
-            value={getPressureLabel(
-              intelligence.pressure?.pressure_level ?? null,
-            )}
-            icon={<TrendingUp size={18} />}
-          />
+              <p className="mt-5 max-w-xl text-sm leading-7 text-[#F8F1E5]/50">
+                Contextual signals to put this destination into perspective.
+              </p>
+            </div>
 
-          <IntelligenceMetric
-            label="Safety"
-            value={getSafetyLabel(intelligence.safety?.safety_level ?? null)}
-            icon={<ShieldCheck size={18} />}
-          />
+            <div className="grid gap-px overflow-hidden border border-[#F8F1E5]/10 bg-[#F8F1E5]/10 md:grid-cols-2 lg:grid-cols-4">
+              {hasImpactScore && (
+                <IntelligenceMetric
+                  label="Impact"
+                  value={formatScore(intelligence.impact!.impact_score)}
+                  suffix="/100"
+                  icon={<Sparkles size={18} />}
+                />
+              )}
 
-          <IntelligenceMetric
-            label="Best time"
-            value={
-              bestMonths.length > 0
-                ? bestMonths.slice(0, 3).join(" · ")
-                : "Varies"
-            }
-            icon={<Compass size={18} />}
-          />
-        </div>
-      </section>
+              {hasPressure && (
+                <IntelligenceMetric
+                  label="Tourism pressure"
+                  value={getPressureLabel(intelligence.pressure?.pressure_level ?? null)}
+                  icon={<TrendingUp size={18} />}
+                />
+              )}
+
+              {hasSafety && (
+                <IntelligenceMetric
+                  label="Safety advisory"
+                  value={getSafetyLabel(intelligence.safety?.safety_level ?? null)}
+                  icon={<ShieldCheck size={18} />}
+                />
+              )}
+
+              {hasBestTime && (
+                <IntelligenceMetric
+                  label="Best time"
+                  value={bestMonths.slice(0, 3).join(" · ")}
+                  icon={<Compass size={18} />}
+                />
+              )}
+            </div>
+          </section>
+        );
+      })()}
 
       {/* -------------------------------------------------- */}
       {/* IMPACT */}
       {/* -------------------------------------------------- */}
 
-      <section className="border-y border-[#F8F1E5]/8 bg-[#0D120F]">
-        <div className="mx-auto max-w-7xl px-6 py-28 lg:px-10 lg:py-40">
-          <div className="grid gap-16 lg:grid-cols-[0.7fr_1.3fr]">
-            <div>
+      {(() => {
+        const impactScores = [
+          intelligence.impact?.impact_score !== null && intelligence.impact?.impact_score !== undefined
+            ? { label: "Overall impact", value: intelligence.impact.impact_score }
+            : null,
+          intelligence.impact?.heritage_preservation_score !== null && intelligence.impact?.heritage_preservation_score !== undefined
+            ? { label: "Heritage preservation", value: intelligence.impact.heritage_preservation_score }
+            : null,
+          intelligence.impact?.environmental_practice_score !== null && intelligence.impact?.environmental_practice_score !== undefined
+            ? { label: "Environmental practice", value: intelligence.impact.environmental_practice_score }
+            : null,
+          intelligence.impact?.local_ownership_score !== null && intelligence.impact?.local_ownership_score !== undefined
+            ? { label: "Local ownership", value: intelligence.impact.local_ownership_score }
+            : null,
+          intelligence.impact?.local_sourcing_score !== null && intelligence.impact?.local_sourcing_score !== undefined
+            ? { label: "Local sourcing", value: intelligence.impact.local_sourcing_score }
+            : null,
+          intelligence.impact?.community_participation_score !== null && intelligence.impact?.community_participation_score !== undefined
+            ? { label: "Community participation", value: intelligence.impact.community_participation_score }
+            : null,
+        ].filter(
+          (item): item is { label: string; value: number } => item !== null
+        );
+
+        if (impactScores.length === 0) return null;
+
+        return (
+          <section className="border-y border-[#F8F1E5]/8 bg-[#0D120F]">
+            <div className="mx-auto max-w-7xl px-6 py-28 lg:px-10 lg:py-40">
+              <div className="grid gap-16 lg:grid-cols-[0.7fr_1.3fr]">
+                <div>
+                  <p className="mb-4 text-xs uppercase tracking-[0.28em] text-[#FF9933]">
+                    Leave something good behind
+                  </p>
+
+                  <h2 className="max-w-md font-serif text-4xl leading-[1.05] sm:text-5xl">
+                    Your journey
+                    <br />
+                    has an impact.
+                  </h2>
+
+                  <p className="mt-6 max-w-sm text-sm leading-7 text-[#F8F1E5]/45">
+                    Khoj evaluates how tourism contributes positively to the places and communities people visit.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {impactScores.map((score) => (
+                    <ScoreCard
+                      key={score.label}
+                      label={score.label}
+                      value={score.value}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        );
+      })()}
+
+      {/* -------------------------------------------------- */}
+      {/* TRAVEL CONDITIONS (KNOW BEFORE YOU GO) */}
+      {/* -------------------------------------------------- */}
+
+      {(() => {
+        const hasSolo = hasContent(intelligence.safety?.solo_travel_suitability);
+        const hasNight = hasContent(intelligence.safety?.night_travel_advisory);
+        const hasEmergency = hasContent(intelligence.safety?.emergency_information);
+        const hasSafetyData = hasSolo || hasNight || hasEmergency;
+
+        const hasWheelchair = intelligence.accessibility?.wheelchair_accessible !== null && intelligence.accessibility?.wheelchair_accessible !== undefined;
+        const hasTransport = intelligence.accessibility?.accessible_transport !== null && intelligence.accessibility?.accessible_transport !== undefined;
+        const hasAccomm = intelligence.accessibility?.accessible_accommodation !== null && intelligence.accessibility?.accessible_accommodation !== undefined;
+        const hasRestrooms = intelligence.accessibility?.accessible_restrooms !== null && intelligence.accessibility?.accessible_restrooms !== undefined;
+        const hasNotes = hasContent(intelligence.accessibility?.accessibility_notes);
+        const hasAccessibilityData = hasWheelchair || hasTransport || hasAccomm || hasRestrooms || hasNotes;
+
+        if (!hasSafetyData && !hasAccessibilityData) return null;
+
+        return (
+          <section className="mx-auto max-w-7xl px-6 py-28 lg:px-10 lg:py-40">
+            <div className="mb-14 max-w-2xl">
               <p className="mb-4 text-xs uppercase tracking-[0.28em] text-[#FF9933]">
-                Leave something good behind
+                Travel conditions
               </p>
 
-              <h2 className="max-w-md font-serif text-4xl leading-[1.05] sm:text-5xl">
-                Your journey
+              <h2 className="font-serif text-4xl leading-tight sm:text-5xl">
+                Know before
                 <br />
-                has an impact.
+                you go.
               </h2>
 
-              <p className="mt-6 max-w-sm text-sm leading-7 text-[#F8F1E5]/45">
-                Khoj considers how tourism can contribute positively to the
-                places people visit.
+              <p className="mt-5 max-w-xl text-sm leading-7 text-[#F8F1E5]/50">
+                Practical context for planning your journey with confidence.
               </p>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <ScoreCard
-                label="Overall impact"
-                value={intelligence.impact?.impact_score ?? null}
-              />
+            <div className={`grid gap-16 ${hasSafetyData && hasAccessibilityData ? "lg:grid-cols-2" : "grid-cols-1 max-w-3xl"}`}>
+              {hasSafetyData && (
+                <InfoPanel
+                  title="Context-aware safety"
+                  eyebrow="Travel with confidence"
+                  icon={<ShieldCheck size={20} />}
+                >
+                  <div className="space-y-6">
+                    {hasSolo && (
+                      <InfoRow
+                        label="Solo travel"
+                        value={intelligence.safety!.solo_travel_suitability!}
+                      />
+                    )}
 
-              <ScoreCard
-                label="Heritage preservation"
-                value={intelligence.impact?.heritage_preservation_score ?? null}
-              />
+                    {hasNight && (
+                      <InfoRow
+                        label="Night travel advisory"
+                        value={intelligence.safety!.night_travel_advisory!}
+                      />
+                    )}
 
-              <ScoreCard
-                label="Environmental practice"
-                value={
-                  intelligence.impact?.environmental_practice_score ?? null
-                }
-              />
+                    {hasEmergency && (
+                      <InfoRow
+                        label="Emergency & medical"
+                        value={intelligence.safety!.emergency_information!}
+                      />
+                    )}
+                  </div>
+                </InfoPanel>
+              )}
 
-              <ScoreCard
-                label="Local ownership"
-                value={intelligence.impact?.local_ownership_score ?? null}
-              />
+              {hasAccessibilityData && (
+                <InfoPanel
+                  title="Accessibility"
+                  eyebrow="Inclusive travel"
+                  icon={<Compass size={20} />}
+                >
+                  {(hasWheelchair || hasTransport || hasAccomm || hasRestrooms) && (
+                    <div className="grid grid-cols-2 gap-4">
+                      {hasWheelchair && (
+                        <BooleanRow
+                          label="Wheelchair"
+                          value={intelligence.accessibility!.wheelchair_accessible}
+                        />
+                      )}
+
+                      {hasTransport && (
+                        <BooleanRow
+                          label="Transport"
+                          value={intelligence.accessibility!.accessible_transport}
+                        />
+                      )}
+
+                      {hasAccomm && (
+                        <BooleanRow
+                          label="Accommodation"
+                          value={intelligence.accessibility!.accessible_accommodation}
+                        />
+                      )}
+
+                      {hasRestrooms && (
+                        <BooleanRow
+                          label="Restrooms"
+                          value={intelligence.accessibility!.accessible_restrooms}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {hasNotes && (
+                    <p className="mt-7 max-w-xl text-sm leading-7 text-[#F8F1E5]/50">
+                      {intelligence.accessibility!.accessibility_notes!}
+                    </p>
+                  )}
+                </InfoPanel>
+              )}
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* -------------------------------------------------- */}
-      {/* TRAVEL CONDITIONS */}
-      {/* -------------------------------------------------- */}
-
-      <section className="mx-auto max-w-7xl px-6 py-28 lg:px-10 lg:py-40">
-        <div className="mb-14 max-w-2xl">
-          <p className="mb-4 text-xs uppercase tracking-[0.28em] text-[#FF9933]">
-            Travel conditions
-          </p>
-
-          <h2 className="font-serif text-4xl leading-tight sm:text-5xl">
-            Know before
-            <br />
-            you go.
-          </h2>
-
-          <p className="mt-5 max-w-xl text-sm leading-7 text-[#F8F1E5]/50">
-            Useful context for planning your journey, without turning the
-            destination into a checklist.
-          </p>
-        </div>
-
-        <div className="grid gap-16 lg:grid-cols-2">
-          <InfoPanel
-            title="Context-aware safety"
-            eyebrow="Travel with confidence"
-            icon={<ShieldCheck size={20} />}
-          >
-            <div className="space-y-6">
-              <InfoRow
-                label="Solo travel"
-                value={
-                  intelligence.safety?.solo_travel_suitability ??
-                  "Not available"
-                }
-              />
-
-              <InfoRow
-                label="Night travel"
-                value={
-                  intelligence.safety?.night_travel_advisory ??
-                  "Follow local guidance."
-                }
-              />
-
-              <InfoRow
-                label="Emergency"
-                value={
-                  intelligence.safety?.emergency_information ??
-                  "Emergency information unavailable."
-                }
-              />
-            </div>
-          </InfoPanel>
-
-          <InfoPanel
-            title="Accessibility"
-            eyebrow="Travel with confidence"
-            icon={<Compass size={20} />}
-          >
-            <div className="grid grid-cols-2 gap-4">
-              <BooleanRow
-                label="Wheelchair"
-                value={
-                  intelligence.accessibility?.wheelchair_accessible ?? null
-                }
-              />
-
-              <BooleanRow
-                label="Transport"
-                value={intelligence.accessibility?.accessible_transport ?? null}
-              />
-
-              <BooleanRow
-                label="Accommodation"
-                value={
-                  intelligence.accessibility?.accessible_accommodation ?? null
-                }
-              />
-
-              <BooleanRow
-                label="Restrooms"
-                value={intelligence.accessibility?.accessible_restrooms ?? null}
-              />
-            </div>
-
-            {intelligence.accessibility?.accessibility_notes && (
-              <p className="mt-7 max-w-xl text-sm leading-7 text-[#F8F1E5]/50">
-                {intelligence.accessibility.accessibility_notes}
-              </p>
-            )}
-          </InfoPanel>
-        </div>
-      </section>
+          </section>
+        );
+      })()}
 
       {/* -------------------------------------------------- */}
       {/* BEST TIME */}
       {/* -------------------------------------------------- */}
 
-      <section className="border-y border-[#F8F1E5]/8 bg-[#0D120F]">
-        <div className="mx-auto max-w-7xl px-6 py-28 lg:px-10 lg:py-36">
-          <div className="grid gap-14 lg:grid-cols-[0.7fr_1.3fr]">
-            <div>
-              <p className="mb-4 text-xs uppercase tracking-[0.28em] text-[#FF9933]">
-                Find your moment
-              </p>
+      {(() => {
+        if (!intelligence.seasonality || intelligence.seasonality.length === 0 || bestSeasonScore === null) {
+          return null;
+        }
 
-              <h2 className="font-serif text-4xl leading-[1.05] sm:text-5xl">
-                When should
-                <br />
-                you go?
-              </h2>
-            </div>
-
-            <div className="max-w-3xl">
-              <div className="flex flex-wrap items-end gap-5">
-                <span className="font-serif text-6xl sm:text-7xl">
-                  {bestSeasonScore !== null
-                    ? formatScore(bestSeasonScore)
-                    : "—"}
-                </span>
-
-                {bestSeasonScore !== null && (
-                  <span className="mb-2 text-sm text-[#F8F1E5]/40">
-                    suitability
-                  </span>
-                )}
-              </div>
-
-              <p className="mt-5 text-sm leading-7 text-[#F8F1E5]/50">
-                {getSuitabilityLabel(bestSeasonScore)} conditions appear across
-                the strongest months in Khoj's destination data.
-              </p>
-
-              {bestMonths.length > 0 && (
-                <div className="mt-10 border-t border-[#F8F1E5]/10 pt-7">
-                  <p className="text-xs uppercase tracking-[0.14em] text-[#F8F1E5]/30">
-                    Strongest months
+        return (
+          <section className="border-y border-[#F8F1E5]/8 bg-[#0D120F]">
+            <div className="mx-auto max-w-7xl px-6 py-28 lg:px-10 lg:py-36">
+              <div className="grid gap-14 lg:grid-cols-[0.7fr_1.3fr]">
+                <div>
+                  <p className="mb-4 text-xs uppercase tracking-[0.28em] text-[#FF9933]">
+                    Find your moment
                   </p>
 
-                  <p className="mt-3 font-serif text-2xl text-[#F8F1E5]/85">
-                    {bestMonths.join(" · ")}
-                  </p>
+                  <h2 className="font-serif text-4xl leading-[1.05] sm:text-5xl">
+                    When should
+                    <br />
+                    you go?
+                  </h2>
                 </div>
-              )}
+
+                <div className="max-w-3xl">
+                  <div className="flex flex-wrap items-end gap-5">
+                    <span className="font-serif text-6xl sm:text-7xl">
+                      {formatScore(bestSeasonScore)}
+                    </span>
+
+                    <span className="mb-2 text-sm text-[#F8F1E5]/40">
+                      suitability score
+                    </span>
+                  </div>
+
+                  <p className="mt-5 text-sm leading-7 text-[#F8F1E5]/50">
+                    {getSuitabilityLabel(bestSeasonScore)} travel conditions observed across Khoj destination data.
+                  </p>
+
+                  {bestMonths.length > 0 && (
+                    <div className="mt-10 border-t border-[#F8F1E5]/10 pt-7">
+                      <p className="text-xs uppercase tracking-[0.14em] text-[#F8F1E5]/30">
+                        Strongest months
+                      </p>
+
+                      <p className="mt-3 font-serif text-2xl text-[#F8F1E5]/85">
+                        {bestMonths.join(" · ")}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
+        );
+      })()}
 
             {/* -------------------------------------------------- */}
       {/* TRAVEL NOTES */}
@@ -811,23 +867,40 @@ function DestinationDetail({ data, onBack }: DestinationDetailProps) {
                   )}
                 </div>
 
-                {experience.short_description && (
+                {experience.short_description ? (
                   <p className="mt-3 text-sm leading-7 text-[#F8F1E5]/55">
                     {experience.short_description}
                   </p>
-                )}
+                ) : experience.description ? (
+                  <p className="mt-3 text-sm leading-7 text-[#F8F1E5]/55">
+                    {experience.description}
+                  </p>
+                ) : null}
 
-                <div className="mt-7 flex flex-wrap gap-4 text-xs text-[#F8F1E5]/45">
-                  {experience.duration_minutes && (
-                    <span>{experience.duration_minutes} min</span>
-                  )}
+                <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-[#F8F1E5]/50">
+                  {experience.duration_minutes !== null &&
+                    experience.duration_minutes > 0 && (
+                      <span>
+                        {experience.duration_minutes >= 60
+                          ? `${Math.floor(experience.duration_minutes / 60)}h${experience.duration_minutes % 60 ? ` ${experience.duration_minutes % 60}m` : ""}`
+                          : `${experience.duration_minutes} min`}
+                      </span>
+                    )}
 
                   {experience.price_from !== null && (
                     <span>From ₹{experience.price_from}</span>
                   )}
 
-                  {experience.max_group_size && (
-                    <span>Up to {experience.max_group_size}</span>
+                  {experience.max_group_size !== null &&
+                    experience.max_group_size > 0 && (
+                      <span>Up to {experience.max_group_size} guests</span>
+                    )}
+
+                  {experience.impact_score !== null && (
+                    <span className="flex items-center gap-1 text-[#FF9933]">
+                      <Sparkles size={12} />
+                      Impact {Math.round(experience.impact_score)}/100
+                    </span>
                   )}
                 </div>
               </article>
