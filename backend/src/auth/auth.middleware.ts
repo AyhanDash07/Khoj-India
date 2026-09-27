@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
 import { supabaseAdmin } from '../config/supabase.js'
-import { resolveUserRole } from './auth.types.js'
+import { resolveUserRole, type UserRole } from './auth.types.js'
 
 export async function requireAuth(
   req: Request,
@@ -61,5 +61,41 @@ export async function requireAuth(
         code: 'AUTH_SERVICE_ERROR',
       },
     })
+  }
+}
+
+/**
+ * Authorization middleware enforcing role-based access control (RBAC).
+ * Expects requireAuth to have executed prior, establishing res.locals.user and res.locals.role.
+ *
+ * @param allowedRoles One or more UserRole values permitted to access the route.
+ * @returns Express middleware function.
+ */
+export function requireRole(...allowedRoles: UserRole[]) {
+  return (_req: Request, res: Response, next: NextFunction) => {
+    if (!res.locals.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required.',
+        error: {
+          code: 'AUTH_REQUIRED',
+        },
+      })
+    }
+
+    const userRole = res.locals.role as UserRole | undefined
+
+    if (!userRole || !allowedRoles.includes(userRole)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access forbidden: Insufficient permissions for this resource.',
+        error: {
+          code: 'FORBIDDEN',
+          requiredRoles: allowedRoles,
+        },
+      })
+    }
+
+    return next()
   }
 }
