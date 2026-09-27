@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
 import { supabaseAdmin } from '../config/supabase.js'
+import { resolveUserRole } from './auth.types.js'
 
 export async function requireAuth(
   req: Request,
@@ -47,6 +48,7 @@ export async function requireAuth(
     }
 
     res.locals.user = user
+    res.locals.role = resolveUserRole(user)
 
     return next()
   } catch (error) {

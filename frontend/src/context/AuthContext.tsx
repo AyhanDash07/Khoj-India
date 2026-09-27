@@ -4,6 +4,7 @@ import type { Session, User } from "@supabase/supabase-js";
 
 import { supabase } from "../lib/supabase.ts";
 import { AuthContext } from "./authContext";
+import { isUserRole, type UserRole } from "../types/auth";
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -13,6 +14,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+
+  const role: UserRole = isUserRole(user?.app_metadata?.role)
+    ? user.app_metadata.role
+    : "tourist";
 
   useEffect(() => {
     let mounted = true;
@@ -52,6 +57,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       value={{
         user,
         session,
+        role,
         loading,
       }}
     >

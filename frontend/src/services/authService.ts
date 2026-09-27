@@ -11,6 +11,7 @@ export async function signUp(
     options: {
       data: {
         full_name: fullName,
+        role: 'tourist',
       },
     },
   })
