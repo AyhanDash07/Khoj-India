@@ -1,18 +1,20 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
   Compass,
   Sparkles,
+  ShieldAlert,
 } from 'lucide-react'
 import {
   motion,
   AnimatePresence,
 } from 'framer-motion'
 
+import { useAuth } from '../../hooks/useAuth'
 import { buildTravellerPreferences } from '../../services/travellerPreferences'
-import api from '../../services/api'
-import { supabase } from '../../lib/supabase'
+import { savePreferences as savePreferencesService } from '../../services/preferenceService'
 
 import type { TravellerPreferences } from '../../types/traveller'
 
@@ -29,12 +31,6 @@ interface Question {
   description: string
   options: string[]
   multiple?: boolean
-}
-
-interface PreferencesResponse {
-  success: boolean
-  message?: string
-  data: TravellerPreferences
 }
 
 const questions: Question[] = [
@@ -136,6 +132,9 @@ const questions: Question[] = [
 export default function TravellerIntelligence({
   onComplete,
 }: TravellerIntelligenceProps) {
+  const navigate = useNavigate()
+  const { user, session } = useAuth()
+
   const [currentStep, setCurrentStep] = useState(0)
 
   const [answers, setAnswers] = useState<
@@ -185,43 +184,25 @@ export default function TravellerIntelligence({
     )
   }
 
-  async function savePreferences() {
+  async function handleSavePreferences() {
+    if (!user || !session) {
+      setSaveError('You must be signed in to save your travel preferences.')
+      return
+    }
+
     setSaving(true)
     setSaveError(null)
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      if (!session) {
-        throw new Error(
-          'You must be signed in to save your travel preferences.',
-        )
-      }
-
       const preferences =
         buildTravellerPreferences(
           answers,
         )
 
-      const response =
-        await api.post<PreferencesResponse>(
-          '/preferences',
-          preferences,
-          {
-            token: session.access_token,
-          },
-        )
+      const savedData = await savePreferencesService(preferences)
 
-      if (!response.success) {
-        throw new Error(
-          response.message ??
-            'Traveller preferences could not be saved.',
-        )
-      }
-
-      onComplete?.(response.data)
+      onComplete?.(savedData)
+      navigate('/explore')
     } catch (error) {
       setSaveError(
         error instanceof Error
@@ -241,11 +222,41 @@ export default function TravellerIntelligence({
       return
     }
 
-    void savePreferences()
+    void handleSavePreferences()
   }
 
   const canContinue =
     selected.length > 0 && !saving
+
+  // Unauthenticated user state
+  if (!user || !session) {
+    return (
+      <main className="min-h-screen bg-[#090D0B] text-[#F8F1E5]">
+        <div className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center px-6 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#FF9933]/30 bg-[#FF9933]/10 text-[#FF9933]">
+            <ShieldAlert size={26} />
+          </div>
+
+          <h1 className="mt-6 font-serif text-4xl sm:text-5xl">
+            Sign in to start onboarding
+          </h1>
+
+          <p className="mt-4 max-w-md text-sm leading-7 text-[#F8F1E5]/60">
+            Building your personalized traveller profile requires an authenticated account.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => navigate('/login')}
+            className="mt-8 inline-flex items-center gap-2 rounded-full border border-[#FF9933] bg-[#FF9933] px-7 py-3.5 text-sm font-medium text-[#090D0B] transition hover:bg-[#F5A623]"
+          >
+            Sign in to Khoj
+            <ArrowRight size={16} />
+          </button>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <main className="min-h-screen bg-[#090D0B] text-[#F8F1E5]">
@@ -267,7 +278,7 @@ export default function TravellerIntelligence({
               </p>
 
               <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-[#F8F1E5]/30">
-                Intelligence
+                Intelligence Onboarding
               </p>
             </div>
           </div>

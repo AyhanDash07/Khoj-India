@@ -17,7 +17,7 @@ import LoginPage from "../pages/LoginPage";
 import RegisterPage from "../pages/RegisterPage";
 import ProfilePage from "../pages/ProfilePage";
 import PreferencesPage from "../pages/PreferencesPage.tsx";
-// import SmartDiscovery from '../components/intelligence/SmartDiscovery'
+import TravellerIntelligence from "../components/ai/TravellerIntelligence.tsx";
 import PreferenceApiTest from "../components/debug/PreferenceApiTest";
 
 function NotFoundPage() {
@@ -56,6 +56,7 @@ function AnimatedRoutes() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path={ROUTES.profile} element={<ProfilePage />} />
           <Route path={ROUTES.preferences} element={<PreferencesPage />} />
+          <Route path={ROUTES.onboarding} element={<TravellerIntelligence />} />
 
           <Route path="*" element={<NotFoundPage />} />
 

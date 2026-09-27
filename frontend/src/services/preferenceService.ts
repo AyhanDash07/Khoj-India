@@ -36,3 +36,34 @@ export async function getPreferences(): Promise<TravellerPreferences | null> {
     return null
   }
 }
+
+/**
+ * Save or update the authenticated traveller's preferences via POST /api/preferences.
+ */
+export async function savePreferences(
+  preferences: TravellerPreferences,
+): Promise<TravellerPreferences> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  if (!session?.access_token) {
+    throw new Error('You must be signed in to save your travel preferences.')
+  }
+
+  const response = await api.post<PreferencesApiResponse>(
+    '/preferences',
+    preferences,
+    {
+      token: session.access_token,
+    },
+  )
+
+  if (!response.success || !response.data) {
+    throw new Error(
+      response.message ?? 'Failed to save your travel preferences.',
+    )
+  }
+
+  return response.data
+}

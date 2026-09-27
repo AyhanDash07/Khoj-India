@@ -13,4 +13,5 @@ export const ROUTES = {
   // Traveller
   profile: '/profile',
   preferences: '/profile/preferences',
+  onboarding: '/onboarding',
 } as const

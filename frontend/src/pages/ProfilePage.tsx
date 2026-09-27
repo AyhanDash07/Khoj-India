@@ -703,6 +703,18 @@ function ProfilePage() {
                   </Link>
 
                   <Link
+                    to="/onboarding"
+                    className="group inline-flex items-center text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+                  >
+                    Take Onboarding Wizard
+
+                    <Sparkles
+                      size={14}
+                      className="ml-1.5 text-[var(--color-accent)]"
+                    />
+                  </Link>
+
+                  <Link
                     to="/plan"
                     className="group inline-flex items-center text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
                   >

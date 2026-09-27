@@ -17,6 +17,7 @@ import {
   Waves,
 } from "lucide-react";
 
+import { useAuth } from "../../hooks/useAuth";
 import { getRecommendations } from "../../services/recommendationService";
 import type { Recommendation } from "../../types/recommendations";
 
@@ -201,19 +202,14 @@ function getSignalIcon(type: Signal["icon"]) {
 
 export default function SmartDiscovery() {
   const shouldReduceMotion = useReducedMotion();
-
   const navigate = useNavigate();
+  const { user, session } = useAuth();
 
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
-
-  const [loading, setLoading] = useState(true);
-
+  const [loading, setLoading] = useState(Boolean(user && session));
   const [error, setError] = useState<string | null>(null);
-
   const [activeIndex, setActiveIndex] = useState(0);
-
   const [hasInteracted, setHasInteracted] = useState(false);
-
   const [isAnimating, setIsAnimating] = useState(false);
 
   const swipeControls = useAnimationControls();
@@ -223,6 +219,11 @@ export default function SmartDiscovery() {
   /* ------------------------------------------------------------------------ */
 
   const loadRecommendations = useCallback(async () => {
+    if (!user || !session) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -232,7 +233,6 @@ export default function SmartDiscovery() {
       });
 
       setRecommendations(response.recommendations);
-
       setActiveIndex(0);
       setHasInteracted(false);
     } catch (err) {
@@ -242,16 +242,14 @@ export default function SmartDiscovery() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user, session]);
 
-  /*
-   * We intentionally schedule the initial request
-   * after mount instead of synchronously calling a
-   * state-changing function from the effect.
-   *
-   * This keeps the React Hooks ESLint rule happy.
-   */
   useEffect(() => {
+    if (!user || !session) {
+      setLoading(false);
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       void loadRecommendations();
     }, 0);
@@ -259,7 +257,7 @@ export default function SmartDiscovery() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [loadRecommendations]);
+  }, [loadRecommendations, user, session]);
 
   /* ------------------------------------------------------------------------ */
   /*                           CURRENT DESTINATIONS                           */
@@ -668,10 +666,71 @@ export default function SmartDiscovery() {
         </div>
 
         {/* ---------------------------------------------------------------- */}
+        {/*                    UNAUTHENTICATED CTA                             */}
+        {/* ---------------------------------------------------------------- */}
+
+        {(!user || !session) && (
+          <div
+            className="
+              mx-auto
+              mt-14
+              max-w-2xl
+              rounded-3xl
+              border
+              border-[#FF9933]/30
+              bg-[#FF9933]/5
+              p-8
+              text-center
+              sm:p-10
+            "
+          >
+            <Compass
+              size={32}
+              className="mx-auto text-[#FF9933]"
+              strokeWidth={1.4}
+            />
+
+            <h3 className="mt-5 font-serif text-3xl text-[#F8F1E5] sm:text-4xl">
+              Discover places chosen for you.
+            </h3>
+
+            <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-[#F8F1E5]/60">
+              Sign in to unlock personalized Khoj recommendations shaped by your travel profile, safety, impact, and local conditions.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => navigate("/login")}
+              className="
+                mt-7
+                inline-flex
+                items-center
+                gap-2
+                rounded-full
+                border
+                border-[#FF9933]
+                bg-[#FF9933]
+                px-7
+                py-3.5
+                text-sm
+                font-medium
+                text-[#06100C]
+                transition-all
+                duration-300
+                hover:bg-[#F5A623]
+              "
+            >
+              Sign in to Khoj
+              <ArrowRight size={16} />
+            </button>
+          </div>
+        )}
+
+        {/* ---------------------------------------------------------------- */}
         {/*                           LOADING                                 */}
         {/* ---------------------------------------------------------------- */}
 
-        {loading && (
+        {user && session && loading && (
           <div
             className="
               flex
@@ -699,7 +758,7 @@ export default function SmartDiscovery() {
         {/*                             ERROR                                 */}
         {/* ---------------------------------------------------------------- */}
 
-        {!loading && error && (
+        {user && session && !loading && error && (
           <div
             className="
               mx-auto
@@ -765,7 +824,7 @@ export default function SmartDiscovery() {
         {/*                         EMPTY STATE                               */}
         {/* ---------------------------------------------------------------- */}
 
-        {!loading && !error && recommendations.length === 0 && (
+        {user && session && !loading && !error && recommendations.length === 0 && (
           <div
             className="
                 mx-auto
