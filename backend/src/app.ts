@@ -11,6 +11,8 @@ import intelligenceRoutes from './recommendations/intelligence.routes.js'
 import recommendationRoutes from './recommendations/recommendation.routes.js'
 import preferenceRoutes from './preferences/preference.routes.js'
 import partnerRoutes from './partners/partner.routes.js'
+import partnerApplicationRoutes from './partners/partnerApplication.routes.js'
+import adminRoutes from './admin/admin.routes.js'
 
 const app = express()
 
@@ -70,6 +72,8 @@ app.use('/api/intelligence', intelligenceRoutes)
 app.use('/api/recommendations', recommendationRoutes)
 app.use('/api/preferences', preferenceRoutes)
 app.use('/api/partner', partnerRoutes)
+app.use('/api/partner-applications', partnerApplicationRoutes)
+app.use('/api/admin', adminRoutes)
 
 // 404 handler
 app.use((_req, res) => {
